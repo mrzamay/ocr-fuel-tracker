@@ -28,24 +28,53 @@ class FuelRecordController extends Controller
             'amount' => 'nullable|numeric|min:0',
             'volume' => 'nullable|numeric|min:0',
             'date' => 'nullable|date',
-            'receipt_image' => 'nullable|image|mimes:jpeg,png,jpg|max:5120', // Максимум 5MB
+            'receipt_image' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
         ]);
 
         $imagePath = null;
         $status = 'manual';
+        $amount = $request->amount;
+        $volume = $request->volume;
 
-        // Если загружен файл чека
         if ($request->hasFile('receipt_image')) {
             $file = $request->file('receipt_image');
             $fileName = time() . '_' . $file->getClientOriginalName();
-            // Сохраняем в папку storage/app/public/receipts
             $imagePath = $file->storeAs('receipts', $fileName, 'public');
-            $status = 'ocr_pending'; // Отправляем на распознавание
+            
+            // Отправка запроса к OCR микросервису
+            try {
+                // Обращаемся по имени сервиса в docker-compose: 'ocr:8000'
+                $response = Http::attach(
+                    'file', 
+                    file_get_contents($file->getRealPath()), 
+                    $file->getClientOriginalName()
+                )->post('http://ocr:8000/recognize');
+
+                if ($response->successful()) {
+                    $ocrData = $response->json('extracted');
+                    
+                    // Если удалось вытащить данные - обновляем их и ставим статус success
+                    if (!empty($ocrData['amount'])) {
+                        $amount = $ocrData['amount'];
+                    }
+                    if (!empty($ocrData['volume'])) {
+                        $volume = $ocrData['volume'];
+                    }
+                    
+                    $status = ($amount || $volume) ? 'success' : 'ocr_pending';
+                } else {
+                    Log::error('OCR Service error: ' . $response->body());
+                    $status = 'ocr_pending'; // Оставляем статус ожидания, если что-то пошло не так
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to connect to OCR service: ' . $e->getMessage());
+                $status = 'ocr_pending';
+            }
         }
 
         $record = $request->user()->fuelRecords()->create([
-            'amount' => $request->amount,
-            'volume' => $request->volume,
+            'amount' => $amount,
+            'volume' => $volume,
             'date' => $request->date ?? now()->toDateString(),
             'receipt_image_path' => $imagePath,
             'status' => $status,
