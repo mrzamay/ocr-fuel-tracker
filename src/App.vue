@@ -1,6 +1,9 @@
 <script setup>
+import { onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from './store/auth'
 import { useRouter } from 'vue-router'
+import { getOfflineRecords, deleteOfflineRecord } from './utils/db'
+import api from './api'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -9,6 +12,53 @@ const logout = async () => {
   auth.logout()
   router.push('/login')
 }
+
+// Функция синхронизации
+const syncOfflineData = async () => {
+  if (!auth.isAuthenticated) return
+
+  const records = await getOfflineRecords()
+  if (records.length === 0) return
+
+  console.log('Начало синхронизации оффлайн записей...')
+  let syncedCount = 0
+
+  for (const record of records) {
+    const formData = new FormData()
+    formData.append('receipt_image', record.file)
+
+    try {
+      await api.post('/records', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      // Если успешно загрузилось, удаляем из локальной БД
+      await deleteOfflineRecord(record.id)
+      syncedCount++
+    } catch (e) {
+      console.error('Ошибка синхронизации записи', record.id, e)
+    }
+  }
+
+  if (syncedCount > 0) {
+    alert(`Синхронизация завершена: ${syncedCount} чек(ов) отправлено на сервер.`)
+    // Перезагружаем текущую страницу, чтобы обновить историю
+    router.go(0) 
+  }
+}
+
+onMounted(() => {
+  // Слушаем появление интернета
+  window.addEventListener('online', syncOfflineData)
+  
+  // Пытаемся синхронизировать при загрузке приложения, если сеть уже есть
+  if (navigator.onLine) {
+    syncOfflineData()
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('online', syncOfflineData)
+})
 </script>
 
 <template>

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import api from '../api'
 import { useRouter } from 'vue-router'
+import { saveOfflineRecord } from '../utils/db'
 
 const router = useRouter()
 const file = ref(null)
@@ -16,6 +17,22 @@ const uploadReceipt = async () => {
   if (!file.value) return
   isLoading.value = true
   
+  // ПРОВЕРКА НА ОФФЛАЙН
+  if (!navigator.onLine) {
+    try {
+      await saveOfflineRecord(file.value)
+      alert('Нет сети! Чек сохранен локально и будет отправлен при появлении интернета.')
+      router.push('/history')
+    } catch (e) {
+      alert('Ошибка при сохранении оффлайн')
+    } finally {
+      isLoading.value = false
+      file.value = null
+    }
+    return
+  }
+
+  // ОБЫЧНАЯ ЗАГРУЗКА (если есть интернет)
   const formData = new FormData()
   formData.append('receipt_image', file.value)
 
@@ -23,8 +40,6 @@ const uploadReceipt = async () => {
     const { data } = await api.post('/records', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    
-    // Показываем результат распознавания для редактирования
     ocrResult.value = data.data
   } catch (error) {
     alert('Ошибка загрузки')
