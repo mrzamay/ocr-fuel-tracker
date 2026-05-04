@@ -45,5 +45,16 @@ services:
     ports:
       - "8000:8000"
 
+  frontend:
+    image: node:20-alpine
+    container_name: fuel_frontend
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host 0.0.0.0
+
 volumes:
   db-data:
