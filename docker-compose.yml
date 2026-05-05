@@ -15,11 +15,13 @@ services:
   web:
     image: nginx:alpine
     container_name: fuel_web
+    user: "root"
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8080:80"
+      # - "443:443" # Раскомментируйте позже, если будете ставить SSL прямо на сервер
     volumes:
-      - ./src:/var/www
+      - ./:/var/www/project
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - app
@@ -44,17 +46,6 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-
-  frontend:
-    image: node:20-alpine
-    container_name: fuel_frontend
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    ports:
-      - "5173:5173"
-    command: npm run dev -- --host 0.0.0.0
 
 volumes:
   db-data:
