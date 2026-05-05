@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class FuelRecord extends Model
 {
     protected $fillable = [
-        'user_id', 'amount', 'volume', 'date', 'receipt_image_path', 'status'
+        'user_id', 'amount', 'volume', 'date', 'receipt_image_path', 'status',
+        'station_name', 'fuel_type'
     ];
 
     protected $casts = [
