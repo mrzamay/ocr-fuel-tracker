@@ -381,7 +381,7 @@ onMounted(fetchStationOptions)
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 4px;
-  background: #dde7f5;
+  background: var(--tab-bg);
   border-radius: var(--radius);
 }
 
@@ -396,7 +396,7 @@ onMounted(fetchStationOptions)
 
 .tabs button.active {
   color: var(--primary);
-  background: #fff;
+  background: var(--tab-active);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
 }
 
@@ -408,9 +408,9 @@ onMounted(fetchStationOptions)
 
 .file-target {
   min-height: 210px;
-  border: 1.5px dashed #9db4d6;
+  border: 1.5px dashed var(--upload-border);
   border-radius: var(--radius);
-  background: linear-gradient(180deg, #f8fbff, #eef6ff);
+  background: var(--upload-bg);
   display: grid;
   place-items: center;
   align-content: center;
@@ -433,7 +433,7 @@ onMounted(fetchStationOptions)
   display: grid;
   place-items: center;
   color: var(--primary);
-  background: #dbeafe;
+  background: var(--info-bg);
 }
 
 .file-title {
@@ -471,8 +471,8 @@ onMounted(fetchStationOptions)
   margin: 0;
   padding: 12px;
   border-radius: var(--radius);
-  color: #9f1239;
-  background: #ffe4e6;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
   font-size: 14px;
   font-weight: 700;
 }
@@ -500,8 +500,8 @@ onMounted(fetchStationOptions)
   gap: 4px;
   padding: 12px;
   border-radius: var(--radius);
-  color: #075985;
-  background: #e0f2fe;
+  color: var(--info-ink);
+  background: var(--info-bg);
 }
 
 .ocr-hint span {
@@ -518,11 +518,11 @@ onMounted(fetchStationOptions)
 .station-chips button {
   flex: 0 0 auto;
   min-height: 34px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid var(--secondary-border);
   border-radius: 999px;
   padding: 0 12px;
   color: var(--primary);
-  background: #eef2ff;
+  background: var(--secondary-bg);
   font-size: 13px;
   font-weight: 800;
 }

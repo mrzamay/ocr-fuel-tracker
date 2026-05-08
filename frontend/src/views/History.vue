@@ -278,7 +278,7 @@ onMounted(refresh)
   padding: 16px;
   border-radius: var(--radius);
   background: var(--surface);
-  border: 1px solid rgba(229, 231, 235, 0.9);
+  border: 1px solid var(--card-border);
   box-shadow: var(--shadow);
 }
 
@@ -305,21 +305,21 @@ onMounted(refresh)
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  color: #065f46;
-  background: #d1fae5;
+  color: var(--success-ink);
+  background: var(--success-bg);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
 
 .status-pill.ocr_pending {
-  color: #92400e;
-  background: #fef3c7;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
 }
 
 .status-pill.manual {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--info-ink);
+  background: var(--info-bg);
 }
 
 .record-metrics {
@@ -366,10 +366,10 @@ onMounted(refresh)
 
 .record-actions button {
   min-height: 42px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid var(--secondary-border);
   border-radius: var(--radius);
   color: var(--primary);
-  background: #eef2ff;
+  background: var(--secondary-bg);
   font-weight: 800;
 }
 
@@ -390,15 +390,15 @@ onMounted(refresh)
   margin: 12px 0 0;
   padding: 12px;
   border-radius: var(--radius);
-  color: #92400e;
-  background: #fef3c7;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
   font-weight: 700;
   font-size: 13px;
 }
 
 .form-error {
-  color: #9f1239;
-  background: #ffe4e6;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
 }
 
 .empty-card {

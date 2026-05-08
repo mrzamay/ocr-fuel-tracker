@@ -95,15 +95,6 @@ const logout = () => {
         <span>Обзор</span>
       </router-link>
 
-      <router-link to="/upload" class="nav-main" aria-label="Добавить">
-        <span class="nav-fab">
-          <svg viewBox="0 0 24 24" width="30" height="30" stroke="currentColor" stroke-width="2.4" fill="none">
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-        </span>
-      </router-link>
-
       <router-link to="/history" class="nav-item" aria-label="История">
         <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
           <path d="M4 7h16" />
@@ -111,6 +102,14 @@ const logout = () => {
           <path d="M4 17h10" />
         </svg>
         <span>История</span>
+      </router-link>
+
+      <router-link to="/upload" class="nav-item nav-add" aria-label="Добавить">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.4" fill="none">
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+        <span>Добавить</span>
       </router-link>
 
       <router-link to="/vehicles" class="nav-item" aria-label="Авто">
@@ -139,18 +138,56 @@ const logout = () => {
   --page: #eef2f7;
   --surface: #ffffff;
   --soft: #f8fafc;
+  --floating: rgba(255, 255, 255, 0.92);
+  --floating-solid: rgba(255, 255, 255, 0.97);
+  --card-border: rgba(229, 231, 235, 0.85);
+  --control-focus: #ffffff;
+  --secondary-bg: #eef2ff;
+  --secondary-border: #c7d2fe;
+  --success-bg: #d1fae5;
+  --success-ink: #065f46;
+  --warning-bg: #fef3c7;
+  --warning-ink: #92400e;
+  --danger-bg: #ffe4e6;
+  --danger-ink: #9f1239;
+  --info-bg: #e0f2fe;
+  --info-ink: #075985;
+  --tab-bg: #dde7f5;
+  --tab-active: #ffffff;
+  --upload-bg: linear-gradient(180deg, #f8fbff, #eef6ff);
+  --upload-border: #9db4d6;
   --radius: 8px;
   --shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+  --nav-shadow: 0 -12px 32px rgba(15, 23, 42, 0.08);
 }
 
 :root[data-theme="dark"] {
   --ink: #f8fafc;
   --muted: #aab4c2;
   --line: #253044;
-  --page: #0f172a;
-  --surface: #162033;
-  --soft: #111827;
+  --page: #0b1220;
+  --surface: #121c2e;
+  --soft: #172338;
+  --floating: rgba(18, 28, 46, 0.9);
+  --floating-solid: rgba(18, 28, 46, 0.97);
+  --card-border: rgba(84, 101, 128, 0.38);
+  --control-focus: #101a2b;
+  --secondary-bg: #1f2b46;
+  --secondary-border: #33446a;
+  --success-bg: rgba(20, 184, 166, 0.16);
+  --success-ink: #7dd3c7;
+  --warning-bg: rgba(245, 158, 11, 0.16);
+  --warning-ink: #fbbf24;
+  --danger-bg: rgba(225, 29, 72, 0.17);
+  --danger-ink: #fda4af;
+  --info-bg: rgba(37, 99, 235, 0.18);
+  --info-ink: #93c5fd;
+  --tab-bg: #18243a;
+  --tab-active: #22314d;
+  --upload-bg: linear-gradient(180deg, #16233a, #101a2b);
+  --upload-border: #3c5278;
   --shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
+  --nav-shadow: 0 -16px 34px rgba(0, 0, 0, 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -158,10 +195,29 @@ const logout = () => {
     --ink: #f8fafc;
     --muted: #aab4c2;
     --line: #253044;
-    --page: #0f172a;
-    --surface: #162033;
-    --soft: #111827;
+    --page: #0b1220;
+    --surface: #121c2e;
+    --soft: #172338;
+    --floating: rgba(18, 28, 46, 0.9);
+    --floating-solid: rgba(18, 28, 46, 0.97);
+    --card-border: rgba(84, 101, 128, 0.38);
+    --control-focus: #101a2b;
+    --secondary-bg: #1f2b46;
+    --secondary-border: #33446a;
+    --success-bg: rgba(20, 184, 166, 0.16);
+    --success-ink: #7dd3c7;
+    --warning-bg: rgba(245, 158, 11, 0.16);
+    --warning-ink: #fbbf24;
+    --danger-bg: rgba(225, 29, 72, 0.17);
+    --danger-ink: #fda4af;
+    --info-bg: rgba(37, 99, 235, 0.18);
+    --info-ink: #93c5fd;
+    --tab-bg: #18243a;
+    --tab-active: #22314d;
+    --upload-bg: linear-gradient(180deg, #16233a, #101a2b);
+    --upload-border: #3c5278;
     --shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
+    --nav-shadow: 0 -16px 34px rgba(0, 0, 0, 0.28);
   }
 }
 
@@ -204,8 +260,8 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+  background: var(--floating);
+  border-bottom: 1px solid var(--card-border);
   backdrop-filter: blur(14px);
 }
 
@@ -255,17 +311,18 @@ button {
   width: min(100%, 640px);
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: 1fr 80px 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid rgba(229, 231, 235, 0.9);
-  box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.08);
+  gap: 6px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--floating-solid);
+  border-top: 1px solid var(--card-border);
+  box-shadow: var(--nav-shadow);
   backdrop-filter: blur(16px);
 }
 
 .nav-item {
-  height: 54px;
+  height: 58px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -275,33 +332,31 @@ button {
   text-decoration: none;
   font-size: 12px;
   font-weight: 700;
+  border-radius: var(--radius);
+  transition: background 0.14s ease, color 0.14s ease, transform 0.14s ease;
 }
 
 .nav-item.router-link-active {
   color: var(--primary);
+  background: var(--secondary-bg);
 }
 
-.nav-main {
-  display: grid;
-  place-items: center;
-  text-decoration: none;
+.nav-add {
+  color: var(--primary);
 }
 
-.nav-fab {
-  width: 62px;
-  height: 62px;
+.nav-add svg {
+  padding: 4px;
   border-radius: 999px;
-  display: grid;
-  place-items: center;
   color: white;
   background: linear-gradient(135deg, var(--primary), var(--mint));
-  box-shadow: 0 15px 30px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
 }
 
 .card,
 .panel {
   background: var(--surface);
-  border: 1px solid rgba(229, 231, 235, 0.85);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
@@ -350,7 +405,7 @@ button {
 .field input:focus,
 .field select:focus {
   border-color: rgba(37, 99, 235, 0.7);
-  background: #fff;
+  background: var(--control-focus);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
 }
 
@@ -370,7 +425,7 @@ button {
 
 .btn-secondary {
   color: var(--ink);
-  background: #eef2ff;
+  background: var(--secondary-bg);
 }
 
 .btn-primary:disabled,

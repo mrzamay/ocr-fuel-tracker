@@ -226,8 +226,8 @@ onMounted(async () => {
   display: inline-flex;
   padding: 4px 9px;
   border-radius: 999px;
-  color: #065f46;
-  background: #d1fae5;
+  color: var(--success-ink);
+  background: var(--success-bg);
   font-size: 12px;
   font-weight: 800;
 }
@@ -241,10 +241,10 @@ onMounted(async () => {
 .vehicle-actions button {
   min-width: 58px;
   min-height: 34px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid var(--secondary-border);
   border-radius: var(--radius);
   color: var(--primary);
-  background: #eef2ff;
+  background: var(--secondary-bg);
   font-weight: 800;
 }
 
@@ -263,8 +263,8 @@ onMounted(async () => {
   margin: 0;
   padding: 12px;
   border-radius: var(--radius);
-  color: #9f1239;
-  background: #ffe4e6;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
   font-weight: 700;
 }
 </style>
