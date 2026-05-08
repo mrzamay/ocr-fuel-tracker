@@ -262,7 +262,7 @@ class FuelRecordController extends Controller
             $record->distance_km = null;
             $record->consumption_l_per_100km = null;
             $record->cost_per_km = null;
-            $record->warnings = [];
+            $warnings = [];
 
             $state[$key]['volumeSinceFull'] += (float) ($record->volume ?? 0);
             $state[$key]['amountSinceFull'] += (float) ($record->amount ?? 0);
@@ -277,7 +277,7 @@ class FuelRecordController extends Controller
                     $record->cost_per_km = round($state[$key]['amountSinceFull'] / $distance, 2);
 
                     if ($record->consumption_l_per_100km > 25 || $record->consumption_l_per_100km < 3) {
-                        $record->warnings[] = 'Проверьте пробег или литры: расход выглядит необычно';
+                        $warnings[] = 'Проверьте пробег или литры: расход выглядит необычно';
                     }
                 }
 
@@ -285,6 +285,8 @@ class FuelRecordController extends Controller
                 $state[$key]['volumeSinceFull'] = 0.0;
                 $state[$key]['amountSinceFull'] = 0.0;
             }
+
+            $record->warnings = $warnings;
 
             return $record;
         });
