@@ -11,6 +11,7 @@ const route = useRoute()
 
 const syncOfflineData = async () => {
   if (!auth.isAuthenticated) return
+
   const records = await getOfflineRecords()
   if (records.length === 0) return
 
@@ -18,6 +19,15 @@ const syncOfflineData = async () => {
   for (const record of records) {
     const formData = new FormData()
     formData.append('receipt_image', record.file)
+
+    if (record.payload) {
+      Object.entries(record.payload).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          formData.append(key, value)
+        }
+      })
+    }
+
     try {
       await api.post('/records', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -25,12 +35,12 @@ const syncOfflineData = async () => {
       await deleteOfflineRecord(record.id)
       syncedCount++
     } catch (e) {
-      console.error('Ошибка оффлайн синхронизации', e)
+      console.error('Ошибка офлайн-синхронизации', e)
     }
   }
-  if (syncedCount > 0) {
-    alert(`Синхронизировано ${syncedCount} чеков!`)
-    if (route.path === '/history' || route.path === '/') router.go(0)
+
+  if (syncedCount > 0 && (route.path === '/history' || route.path === '/')) {
+    router.go(0)
   }
 }
 
@@ -43,26 +53,29 @@ onUnmounted(() => {
   window.removeEventListener('online', syncOfflineData)
 })
 
-const logout = async () => {
+const logout = () => {
   auth.logout()
   router.push('/login')
 }
 </script>
 
 <template>
-  <div class="app-layout">
-    <!-- Header -->
+  <div class="app-shell">
     <header class="top-header" v-if="auth.isAuthenticated">
-      <h1>⛽ FuelTracker</h1>
-      <button @click="logout" class="btn-icon">
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
-          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+      <div>
+        <p class="eyebrow">Учёт топлива</p>
+        <h1>FuelTracker</h1>
+      </div>
+      <button @click="logout" class="icon-button" aria-label="Выйти">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <path d="M16 17l5-5-5-5" />
+          <path d="M21 12H9" />
         </svg>
       </button>
     </header>
 
-    <!-- Main Content -->
-    <main class="main-content" :class="{ 'no-padding': !auth.isAuthenticated }">
+    <main class="main-content" :class="{ 'auth-content': !auth.isAuthenticated }">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />
@@ -70,29 +83,30 @@ const logout = async () => {
       </router-view>
     </main>
 
-    <!-- Bottom Navigation (Mobile Style) -->
     <nav class="bottom-nav" v-if="auth.isAuthenticated">
-      <router-link to="/" class="nav-item">
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-          <line x1="3" y1="9" x2="21" y2="9"/>
-          <line x1="9" y1="21" x2="9" y2="9"/>
+      <router-link to="/" class="nav-item" aria-label="Обзор">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M4 13h6V4H4v9Z" />
+          <path d="M14 20h6V4h-6v16Z" />
+          <path d="M4 20h6v-3H4v3Z" />
         </svg>
-        <span>Дашборд</span>
-      </router-link>
-      
-      <router-link to="/upload" class="nav-item nav-main">
-        <div class="nav-fab">
-          <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-        </div>
+        <span>Обзор</span>
       </router-link>
 
-      <router-link to="/history" class="nav-item">
-        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
-          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-          <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+      <router-link to="/upload" class="nav-main" aria-label="Добавить">
+        <span class="nav-fab">
+          <svg viewBox="0 0 24 24" width="30" height="30" stroke="currentColor" stroke-width="2.4" fill="none">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+        </span>
+      </router-link>
+
+      <router-link to="/history" class="nav-item" aria-label="История">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M4 7h16" />
+          <path d="M4 12h16" />
+          <path d="M4 17h10" />
         </svg>
         <span>История</span>
       </router-link>
@@ -101,143 +115,244 @@ const logout = async () => {
 </template>
 
 <style>
-/* CSS Variables */
 :root {
-  --primary: #4F46E5;
-  --primary-hover: #4338CA;
-  --bg-color: #F3F4F6;
-  --card-bg: #FFFFFF;
-  --text-main: #1F2937;
-  --text-muted: #6B7280;
-  --danger: #EF4444;
-  --radius: 16px;
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --primary: #2563eb;
+  --primary-strong: #1d4ed8;
+  --mint: #14b8a6;
+  --amber: #f59e0b;
+  --rose: #e11d48;
+  --ink: #111827;
+  --muted: #667085;
+  --line: #e5e7eb;
+  --page: #eef2f7;
+  --surface: #ffffff;
+  --soft: #f8fafc;
+  --radius: 8px;
+  --shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
 }
 
-* { box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
-body { margin: 0; background-color: var(--bg-color); color: var(--text-main); -webkit-tap-highlight-color: transparent; }
+* {
+  box-sizing: border-box;
+}
 
-.app-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  max-width: 600px;
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app-shell {
+  width: min(100%, 640px);
+  min-height: 100svh;
   margin: 0 auto;
-  background: var(--bg-color);
+  background: var(--page);
   position: relative;
 }
 
-/* Header */
 .top-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  background: var(--card-bg);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  position: sticky;
+  top: 0;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+  backdrop-filter: blur(14px);
 }
-.top-header h1 { margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--primary); }
-.btn-icon { background: none; border: none; padding: 5px; color: var(--text-muted); cursor: pointer; }
 
-/* Main Content */
+.top-header h1 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.icon-button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+
 .main-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  padding-bottom: 90px; /* Space for bottom nav */
+  min-height: calc(100svh - 80px);
+  padding: 18px 14px calc(96px + env(safe-area-inset-bottom, 0px));
 }
-.main-content.no-padding { padding-bottom: 20px; display: flex; align-items: center; }
 
-/* Bottom Nav */
+.main-content.auth-content {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px 14px;
+}
+
 .bottom-nav {
   position: fixed;
+  left: 50%;
   bottom: 0;
-  width: 100%;
-  max-width: 600px;
-  background: var(--card-bg);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding: 10px 0;
-  padding-bottom: env(safe-area-inset-bottom, 10px);
-  box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
-  border-top-left-radius: 20px;
-  border-top-right-radius: 20px;
   z-index: 20;
+  width: min(100%, 640px);
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: 1fr 88px 1fr;
+  align-items: center;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid rgba(229, 231, 235, 0.9);
+  box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(16px);
 }
 
 .nav-item {
+  height: 54px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-decoration: none;
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  gap: 4px;
-  width: 33%;
-}
-
-.nav-item.router-link-active { color: var(--primary); font-weight: 600; }
-
-.nav-main { position: relative; }
-.nav-fab {
-  background: var(--primary);
-  color: white;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  position: absolute;
-  bottom: -5px;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
-  transition: transform 0.2s;
+  gap: 4px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
 }
-.nav-fab:active { transform: scale(0.95); }
 
-/* Global UI Classes */
-.card {
-  background: var(--card-bg);
-  padding: 20px;
+.nav-item.router-link-active {
+  color: var(--primary);
+}
+
+.nav-main {
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+.nav-fab {
+  width: 62px;
+  height: 62px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background: linear-gradient(135deg, var(--primary), var(--mint));
+  box-shadow: 0 15px 30px rgba(37, 99, 235, 0.28);
+}
+
+.card,
+.panel {
+  background: var(--surface);
+  border: 1px solid rgba(229, 231, 235, 0.85);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  margin-bottom: 20px;
 }
-.card h2 { margin-top: 0; margin-bottom: 20px; font-size: 1.25rem; }
 
-.input-group { margin-bottom: 15px; }
-.input-group label { display: block; margin-bottom: 5px; font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
-input, select {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  font-size: 1rem;
-  background: #F9FAFB;
-  outline: none;
-  transition: border 0.2s;
+.card {
+  padding: 18px;
 }
-input:focus, select:focus { border-color: var(--primary); background: #fff; }
+
+.section-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.section-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--soft);
+  color: var(--ink);
+  padding: 11px 12px;
+  outline: none;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: rgba(37, 99, 235, 0.7);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.btn-primary,
+.btn-secondary {
+  min-height: 50px;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 0 16px;
+  font-weight: 800;
+}
 
 .btn-primary {
-  width: 100%;
-  background: var(--primary);
   color: white;
-  border: none;
-  padding: 14px;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
-  transition: background 0.2s;
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
 }
-.btn-primary:hover { background: var(--primary-hover); }
-.btn-primary:disabled { background: #9CA3AF; cursor: not-allowed; box-shadow: none; }
 
-/* Transitions */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.btn-secondary {
+  color: var(--ink);
+  background: #eef2ff;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
 </style>

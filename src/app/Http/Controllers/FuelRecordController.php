@@ -17,7 +17,34 @@ class FuelRecordController extends Controller
     // Получить все записи текущего пользователя
     public function index(Request $request)
     {
-        $records = $request->user()->fuelRecords()->orderBy('date', 'desc')->get();
+        $records = $request->user()
+            ->fuelRecords()
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        $previousOdometer = null;
+
+        $records = $records->map(function (FuelRecord $record) use (&$previousOdometer) {
+            $record->distance_km = null;
+            $record->consumption_l_per_100km = null;
+
+            if ($record->odometer_km && $previousOdometer && $record->odometer_km > $previousOdometer) {
+                $distance = $record->odometer_km - $previousOdometer;
+                $record->distance_km = $distance;
+
+                if ($record->volume) {
+                    $record->consumption_l_per_100km = round(((float) $record->volume / $distance) * 100, 2);
+                }
+            }
+
+            if ($record->odometer_km) {
+                $previousOdometer = $record->odometer_km;
+            }
+
+            return $record;
+        })->reverse()->values();
+
         return response()->json($records);
     }
 
@@ -26,8 +53,9 @@ class FuelRecordController extends Controller
         $request->validate([
             'amount' => 'nullable|numeric|min:0',
             'volume' => 'nullable|numeric|min:0',
+            'odometer_km' => 'nullable|integer|min:0',
             'date' => 'nullable|date',
-            'receipt_image' => 'nullable|image|mimes:jpeg,png,jpg|max:5120',
+            'receipt_image' => 'nullable|file|extensions:jpg,jpeg,png,webp,heic,heif|max:15360',
             'station_name' => 'nullable|string|max:255',
             'fuel_type' => 'nullable|string|max:100',
         ]);
@@ -63,6 +91,7 @@ class FuelRecordController extends Controller
         $record = $request->user()->fuelRecords()->create([
             'amount' => $amount,
             'volume' => $volume,
+            'odometer_km' => $request->odometer_km,
             'date' => $request->date ?? now()->toDateString(),
             'receipt_image_path' => $imagePath,
             'status' => $status,
@@ -85,13 +114,14 @@ class FuelRecordController extends Controller
         $request->validate([
             'amount' => 'nullable|numeric|min:0',
             'volume' => 'nullable|numeric|min:0',
+            'odometer_km' => 'nullable|integer|min:0',
             'date' => 'nullable|date',
             'status' => 'nullable|string|in:manual,success,ocr_pending',
             'station_name' => 'nullable|string|max:255',
             'fuel_type' => 'nullable|string|max:100',
         ]);
 
-        $fuelRecord->update($request->only(['amount', 'volume', 'date', 'status', 'station_name', 'fuel_type']));
+        $fuelRecord->update($request->only(['amount', 'volume', 'odometer_km', 'date', 'status', 'station_name', 'fuel_type']));
 
         return response()->json(['message' => 'Запись обновлена', 'data' => $fuelRecord]);
     }
