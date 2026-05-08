@@ -22,6 +22,11 @@ const routes = [
     component: () => import('../views/Upload.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/vehicles',
+    component: () => import('../views/Vehicles.vue'),
+    meta: { requiresAuth: true }
+  },
 ]
 
 const router = createRouter({

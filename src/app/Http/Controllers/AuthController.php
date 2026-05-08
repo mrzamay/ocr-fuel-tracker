@@ -23,6 +23,12 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
+        $user->vehicles()->create([
+            'name' => 'Моё авто',
+            'fuel_type' => 'АИ-95',
+            'is_default' => true,
+        ]);
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([

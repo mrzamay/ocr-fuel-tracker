@@ -45,6 +45,8 @@ const syncOfflineData = async () => {
 }
 
 onMounted(() => {
+  const theme = localStorage.getItem('theme') || 'system'
+  document.documentElement.dataset.theme = theme
   window.addEventListener('online', syncOfflineData)
   if (navigator.onLine) syncOfflineData()
 })
@@ -110,6 +112,16 @@ const logout = () => {
         </svg>
         <span>История</span>
       </router-link>
+
+      <router-link to="/vehicles" class="nav-item" aria-label="Авто">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
+          <path d="M5 17h14" />
+          <path d="M7 17l1-5h8l1 5" />
+          <circle cx="8" cy="17" r="2" />
+          <circle cx="16" cy="17" r="2" />
+        </svg>
+        <span>Авто</span>
+      </router-link>
     </nav>
   </div>
 </template>
@@ -129,6 +141,28 @@ const logout = () => {
   --soft: #f8fafc;
   --radius: 8px;
   --shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --ink: #f8fafc;
+  --muted: #aab4c2;
+  --line: #253044;
+  --page: #0f172a;
+  --surface: #162033;
+  --soft: #111827;
+  --shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #f8fafc;
+    --muted: #aab4c2;
+    --line: #253044;
+    --page: #0f172a;
+    --surface: #162033;
+    --soft: #111827;
+    --shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
+  }
 }
 
 * {
@@ -221,7 +255,7 @@ button {
   width: min(100%, 640px);
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: 1fr 88px 1fr;
+  grid-template-columns: 1fr 80px 1fr 1fr;
   align-items: center;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
   background: rgba(255, 255, 255, 0.95);

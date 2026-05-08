@@ -161,6 +161,8 @@ def extract_data_from_text(text: str) -> dict[str, Any]:
     amount = best_candidate(amount_candidates)
     volume = best_candidate(volume_candidates)
     unit_price = best_candidate(price_candidates)
+    fuel_type = extract_fuel_type(normalized)
+    station_name = extract_station_name(normalized)
 
     # If total and unit price are known, recover liters.
     if not volume and amount and unit_price and unit_price.value > 0:
@@ -186,6 +188,8 @@ def extract_data_from_text(text: str) -> dict[str, Any]:
         "amount": amount.value if amount else None,
         "volume": volume.value if volume else None,
         "unit_price": unit_price.value if unit_price else None,
+        "fuel_type": fuel_type,
+        "station_name": station_name,
         "confidence": min(confidence, 100),
         "sources": {
             "amount": amount.source if amount else None,
@@ -193,6 +197,53 @@ def extract_data_from_text(text: str) -> dict[str, Any]:
             "unit_price": unit_price.source if unit_price else None,
         },
     }
+
+
+def extract_fuel_type(text: str) -> str | None:
+    patterns = [
+        (r"(?:аи|aи|ai)[\s-]?(92|95|98|100)", "АИ-{}"),
+        (r"\bдт\b|diesel|дизель", "ДТ"),
+        (r"пропан|метан|газ", "Газ"),
+    ]
+
+    for pattern, template in patterns:
+        match = re.search(pattern, text)
+        if match:
+            if "{}" in template:
+                return template.format(match.group(1))
+            return template
+
+    return None
+
+
+def extract_station_name(text: str) -> str | None:
+    known_stations = [
+        "лукойл",
+        "lukoil",
+        "газпромнефть",
+        "газпром",
+        "gpn",
+        "роснефть",
+        "татнефть",
+        "shell",
+        "bp",
+        "башнефть",
+        "трасса",
+        "нефтьмагистраль",
+    ]
+
+    aliases = {
+        "lukoil": "Лукойл",
+        "gpn": "Газпромнефть",
+        "shell": "Shell",
+        "bp": "BP",
+    }
+
+    for station in known_stations:
+        if station in text:
+            return aliases.get(station, station.capitalize())
+
+    return None
 
 
 def prepare_image(image: Image.Image) -> Image.Image:

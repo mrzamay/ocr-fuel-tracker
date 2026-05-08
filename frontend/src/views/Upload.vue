@@ -9,12 +9,23 @@ const activeTab = ref('scan')
 const file = ref(null)
 const isLoading = ref(false)
 const ocrResult = ref(null)
+const ocrInfo = ref(null)
 const errorMessage = ref('')
 const stationOptions = ref([])
+const vehicles = ref([])
+const locationState = ref({
+  latitude: '',
+  longitude: '',
+  accuracy: '',
+  label: ''
+})
 
 const formData = ref({
+  vehicle_id: '',
   amount: '',
   volume: '',
+  unit_price: '',
+  is_full_tank: true,
   odometer_km: '',
   station_name: '',
   fuel_type: 'АИ-95',
@@ -27,24 +38,37 @@ const fileSizeMb = computed(() => file.value ? (file.value.size / 1024 / 1024).t
 
 const fetchStationOptions = async () => {
   try {
-    const { data } = await api.get('/records')
-    stationOptions.value = [...new Set(
-      data
-        .map(record => record.station_name?.trim())
-        .filter(Boolean)
-    )].sort((a, b) => a.localeCompare(b, 'ru'))
+    const [{ data: meta }, { data: vehicleData }] = await Promise.all([
+      api.get('/records/meta'),
+      api.get('/vehicles')
+    ])
+    stationOptions.value = meta.stations || []
+    vehicles.value = vehicleData
+    const defaultVehicle = vehicleData.find(vehicle => vehicle.is_default) || vehicleData[0]
+    if (defaultVehicle && !formData.value.vehicle_id) {
+      formData.value.vehicle_id = defaultVehicle.id
+      formData.value.fuel_type = defaultVehicle.fuel_type || formData.value.fuel_type
+      formData.value.odometer_km = defaultVehicle.current_odometer_km || formData.value.odometer_km
+    }
   } catch (error) {
     stationOptions.value = []
+    vehicles.value = []
   }
 }
 
 const payload = () => ({
+  vehicle_id: formData.value.vehicle_id,
   amount: formData.value.amount,
   volume: formData.value.volume,
+  unit_price: formData.value.unit_price,
+  is_full_tank: formData.value.is_full_tank ? 1 : 0,
   odometer_km: formData.value.odometer_km,
   station_name: formData.value.station_name,
   fuel_type: formData.value.fuel_type,
-  date: formData.value.date
+  date: formData.value.date,
+  latitude: locationState.value.latitude,
+  longitude: locationState.value.longitude,
+  location_accuracy: locationState.value.accuracy
 })
 
 const appendPayload = (fd) => {
@@ -58,6 +82,36 @@ const appendPayload = (fd) => {
 const handleFile = (e) => {
   errorMessage.value = ''
   file.value = e.target.files?.[0] || null
+}
+
+const fillFromVehicle = () => {
+  const vehicle = vehicles.value.find(item => item.id === Number(formData.value.vehicle_id))
+  if (!vehicle) return
+  formData.value.fuel_type = vehicle.fuel_type || formData.value.fuel_type
+  formData.value.odometer_km = vehicle.current_odometer_km || formData.value.odometer_km
+}
+
+const captureLocation = () => {
+  if (!navigator.geolocation) {
+    locationState.value.label = 'Геолокация недоступна'
+    return
+  }
+
+  locationState.value.label = 'Определяем место...'
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      locationState.value = {
+        latitude: position.coords.latitude.toFixed(7),
+        longitude: position.coords.longitude.toFixed(7),
+        accuracy: `${Math.round(position.coords.accuracy)} м`,
+        label: `Место сохранено, точность ${Math.round(position.coords.accuracy)} м`
+      }
+    },
+    () => {
+      locationState.value.label = 'Не удалось получить геопозицию'
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  )
 }
 
 const uploadReceipt = async () => {
@@ -88,9 +142,16 @@ const uploadReceipt = async () => {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     ocrResult.value = data.data
+    ocrInfo.value = {
+      ...(data.ocr || {}),
+      extracted: data.ocr_extracted || {}
+    }
     formData.value.amount = ocrResult.value.amount || formData.value.amount
     formData.value.volume = ocrResult.value.volume || formData.value.volume
+    formData.value.unit_price = ocrResult.value.unit_price || data.ocr_extracted?.unit_price || formData.value.unit_price
     formData.value.odometer_km = ocrResult.value.odometer_km || formData.value.odometer_km
+    formData.value.station_name = ocrResult.value.station_name || data.ocr_extracted?.station_name || formData.value.station_name
+    formData.value.fuel_type = ocrResult.value.fuel_type || data.ocr_extracted?.fuel_type || formData.value.fuel_type
     formData.value.date = ocrResult.value.date || formData.value.date
     activeTab.value = 'manual'
   } catch (error) {
@@ -174,13 +235,33 @@ onMounted(fetchStationOptions)
 
       <div class="quick-grid">
         <div class="field">
+          <label>Авто</label>
+          <select v-model="formData.vehicle_id" @change="fillFromVehicle">
+            <option value="">Моё авто</option>
+            <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
+              {{ vehicle.name }}
+            </option>
+          </select>
+        </div>
+        <div class="field">
           <label>Пробег, км</label>
           <input v-model="formData.odometer_km" inputmode="numeric" type="number" min="0" placeholder="84500" />
         </div>
+      </div>
+
+      <button class="btn-secondary" type="button" @click="captureLocation">
+        {{ locationState.label || 'Сохранить геопозицию АЗС' }}
+      </button>
+
+      <div class="quick-grid">
         <div class="field">
           <label>Дата</label>
           <input v-model="formData.date" type="date" />
         </div>
+        <label class="check-card">
+          <input v-model="formData.is_full_tank" type="checkbox" />
+          <span>Полный бак</span>
+        </label>
       </div>
 
       <button class="btn-primary" @click="uploadReceipt" :disabled="!file || isLoading">
@@ -196,12 +277,25 @@ onMounted(fetchStationOptions)
 
       <div class="form-grid">
         <div class="field">
+          <label>Авто</label>
+          <select v-model="formData.vehicle_id" @change="fillFromVehicle">
+            <option value="">Моё авто</option>
+            <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
+              {{ vehicle.name }}
+            </option>
+          </select>
+        </div>
+        <div class="field">
           <label>Сумма, ₽</label>
           <input v-model="formData.amount" inputmode="decimal" type="number" step="0.01" min="0" placeholder="3200" />
         </div>
         <div class="field">
           <label>Литры</label>
           <input v-model="formData.volume" inputmode="decimal" type="number" step="0.01" min="0" placeholder="45.2" />
+        </div>
+        <div class="field">
+          <label>Цена литра</label>
+          <input v-model="formData.unit_price" inputmode="decimal" type="number" step="0.01" min="0" placeholder="62.50" />
         </div>
         <div class="field">
           <label>Пробег, км</label>
@@ -218,6 +312,20 @@ onMounted(fetchStationOptions)
         <select v-model="formData.fuel_type">
           <option v-for="ft in fuelTypes" :key="ft" :value="ft">{{ ft }}</option>
         </select>
+      </div>
+
+      <label class="check-card">
+        <input v-model="formData.is_full_tank" type="checkbox" />
+        <span>Заправка до полного бака</span>
+      </label>
+
+      <button class="btn-secondary" type="button" @click="captureLocation">
+        {{ locationState.label || 'Сохранить геопозицию АЗС' }}
+      </button>
+
+      <div v-if="ocrInfo" class="ocr-hint">
+        <strong>OCR: {{ ocrInfo.extracted?.confidence || 0 }}%</strong>
+        <span>Проверьте подсвеченные поля перед сохранением.</span>
       </div>
 
       <div class="field">
@@ -367,6 +475,37 @@ onMounted(fetchStationOptions)
   background: #ffe4e6;
   font-size: 14px;
   font-weight: 700;
+}
+
+.check-card {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--soft);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.check-card input {
+  width: 20px;
+  height: 20px;
+}
+
+.ocr-hint {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius);
+  color: #075985;
+  background: #e0f2fe;
+}
+
+.ocr-hint span {
+  font-size: 13px;
 }
 
 .station-chips {
