@@ -58,6 +58,12 @@ const uploadReceipt = async () => {
     formData.value.amount = ocrResult.value.amount || ''
     formData.value.volume = ocrResult.value.volume || ''
     formData.value.date = ocrResult.value.date || formData.value.date
+
+    // Обязательно добавь эти строки, чтобы мы увидели ответ API!
+    console.log("Ответ от сервера:", data);
+    ocrResult.value = data.data;
+    ocrResult.value.raw_text = data.raw_text; // Если бэкенд прокинет raw_text
+
   } catch (error) {
     alert('Ошибка загрузки чека')
   } finally {
@@ -165,6 +171,11 @@ const submitManual = async () => {
       <div class="input-group">
         <label>Дата</label>
         <input type="date" v-model="formData.date" required />
+      </div>
+
+      <div v-if="ocrResult && ocrResult.raw_text" style="margin-top:20px; font-size:0.8em; color:gray;">
+        <p><strong>Сырой текст с чека (для отладки):</strong></p>
+        <pre style="white-space: pre-wrap; background:#f0f0f0; padding:10px; border-radius:5px; max-height: 150px; overflow-y: auto;">{{ ocrResult.raw_text }}</pre>
       </div>
 
       <button class="btn-primary" @click="ocrResult ? saveCorrection() : submitManual()" :disabled="isLoading">
