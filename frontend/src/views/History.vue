@@ -27,6 +27,18 @@ const formatNumber = (value, digits = 1) => {
   }).format(Number(value))
 }
 
+const formatDate = (value) => {
+  if (!value) return 'Без даты'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).split('T')[0]
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date)
+}
+
 const statusLabel = (status) => ({
   manual: 'Вручную',
   success: 'Готово',
@@ -58,7 +70,7 @@ onMounted(fetchRecords)
         <div class="record-top">
           <div>
             <h3>{{ record.station_name || 'Заправка' }}</h3>
-            <p>{{ record.date }} · {{ record.fuel_type || 'топливо' }}</p>
+            <p>{{ formatDate(record.date) }} · {{ record.fuel_type || 'топливо' }}</p>
           </div>
           <span class="status-pill" :class="record.status">{{ statusLabel(record.status) }}</span>
         </div>

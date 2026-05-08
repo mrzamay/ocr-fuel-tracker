@@ -21,6 +21,31 @@ const formatNumber = (value, digits = 1) => {
   }).format(Number(value))
 }
 
+const parseDate = (value) => {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const formatDate = (value) => {
+  const date = parseDate(value)
+  if (!date) return 'Без даты'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date)
+}
+
+const formatChartDate = (value) => {
+  const date = parseDate(value)
+  if (!date) return 'Без даты'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short'
+  }).format(date)
+}
+
 const fetchData = async () => {
   isLoading.value = true
   try {
@@ -58,7 +83,7 @@ const chartData = computed(() => {
   const labels = Object.keys(grouped).sort().slice(-8)
 
   return {
-    labels,
+    labels: labels.map(formatChartDate),
     datasets: [{
       label: 'Расходы, ₽',
       backgroundColor: '#2563eb',
@@ -131,7 +156,7 @@ onMounted(fetchData)
         <article v-for="record in latestRecords" :key="record.id" class="recent-item">
           <div>
             <strong>{{ record.station_name || 'Заправка' }}</strong>
-            <span>{{ record.date }} · {{ record.fuel_type || 'топливо' }}</span>
+            <span>{{ formatDate(record.date) }} · {{ record.fuel_type || 'топливо' }}</span>
           </div>
           <div>
             <strong>{{ formatNumber(record.volume, 1) }} л</strong>
