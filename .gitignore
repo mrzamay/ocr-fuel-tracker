@@ -1,0 +1,70 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.zed/
+.cursor/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs and runtime output
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+auth.json
+
+# PHP / Laravel
+src/vendor/
+src/node_modules/
+src/public/build/
+src/public/hot
+src/public/storage
+src/storage/*.key
+src/storage/pail/
+src/.phpunit.cache/
+src/.phpunit.result.cache
+src/.phpactor.json
+src/bootstrap/cache/*.php
+!src/bootstrap/cache/.gitignore
+
+# Frontend / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/.vite/
+
+# Python / OCR service
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Docker / local data
+docker-data/
+*.sqlite
+*.sqlite3
+
+# Agent/tooling local state
+.codex/

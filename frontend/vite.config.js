@@ -48,13 +48,13 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     proxy: {
-      // Проксируем API-запросы к нашему Nginx (Laravel) внутри Docker-сети
+      // Проксируем API-запросы к локальному Nginx (Laravel).
       '/api': {
-        target: 'http://web:80',
+        target: 'http://localhost:8080',
         changeOrigin: true
       },
       '/storage': {
-         target: 'http://web:80',
+         target: 'http://localhost:8080',
          changeOrigin: true
       }
     }
