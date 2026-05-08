@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import api from '../api'
 import { useRouter } from 'vue-router'
 import { saveOfflineRecord } from '../utils/db'
@@ -10,6 +10,7 @@ const file = ref(null)
 const isLoading = ref(false)
 const ocrResult = ref(null)
 const errorMessage = ref('')
+const stationOptions = ref([])
 
 const formData = ref({
   amount: '',
@@ -23,6 +24,19 @@ const formData = ref({
 const fuelTypes = ['АИ-92', 'АИ-95', 'АИ-98', 'АИ-100', 'ДТ', 'Газ']
 
 const fileSizeMb = computed(() => file.value ? (file.value.size / 1024 / 1024).toFixed(1) : null)
+
+const fetchStationOptions = async () => {
+  try {
+    const { data } = await api.get('/records')
+    stationOptions.value = [...new Set(
+      data
+        .map(record => record.station_name?.trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'ru'))
+  } catch (error) {
+    stationOptions.value = []
+  }
+}
 
 const payload = () => ({
   amount: formData.value.amount,
@@ -80,8 +94,10 @@ const uploadReceipt = async () => {
     formData.value.date = ocrResult.value.date || formData.value.date
     activeTab.value = 'manual'
   } catch (error) {
-    if (error.response?.status === 422) {
-      errorMessage.value = 'Фото не принято сервером. На iPhone чаще всего помогает JPEG/PNG или фото до 15 МБ.'
+    if (error.response?.status === 413) {
+      errorMessage.value = 'Фото слишком большое для сервера. После обновления лимит будет 30 МБ.'
+    } else if (error.response?.status === 422) {
+      errorMessage.value = 'Фото не принято сервером. На iPhone попробуйте формат JPEG/PNG или фото до 30 МБ.'
     } else {
       errorMessage.value = 'Не получилось загрузить чек. Попробуйте ещё раз.'
     }
@@ -120,6 +136,8 @@ const submitManual = async () => {
     isLoading.value = false
   }
 }
+
+onMounted(fetchStationOptions)
 </script>
 
 <template>
@@ -204,7 +222,26 @@ const submitManual = async () => {
 
       <div class="field">
         <label>АЗС</label>
-        <input v-model="formData.station_name" type="text" placeholder="Лукойл, Газпромнефть..." />
+        <input
+          v-model="formData.station_name"
+          type="text"
+          list="station-options"
+          autocomplete="off"
+          placeholder="Лукойл, Газпромнефть..."
+        />
+        <datalist id="station-options">
+          <option v-for="station in stationOptions" :key="station" :value="station" />
+        </datalist>
+        <div v-if="stationOptions.length" class="station-chips">
+          <button
+            v-for="station in stationOptions.slice(0, 6)"
+            :key="station"
+            type="button"
+            @click="formData.station_name = station"
+          >
+            {{ station }}
+          </button>
+        </div>
       </div>
 
       <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
@@ -330,5 +367,24 @@ const submitManual = async () => {
   background: #ffe4e6;
   font-size: 14px;
   font-weight: 700;
+}
+
+.station-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+}
+
+.station-chips button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: var(--primary);
+  background: #eef2ff;
+  font-size: 13px;
+  font-weight: 800;
 }
 </style>

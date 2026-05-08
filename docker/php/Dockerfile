@@ -20,6 +20,12 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 # Установка Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+RUN { \
+    echo 'upload_max_filesize=32M'; \
+    echo 'post_max_size=36M'; \
+    echo 'memory_limit=256M'; \
+  } > /usr/local/etc/php/conf.d/uploads.ini
+
 WORKDIR /var/www
 
 CMD ["php-fpm"]

@@ -55,7 +55,7 @@ class FuelRecordController extends Controller
             'volume' => 'nullable|numeric|min:0',
             'odometer_km' => 'nullable|integer|min:0',
             'date' => 'nullable|date',
-            'receipt_image' => 'nullable|file|extensions:jpg,jpeg,png,webp,heic,heif|max:15360',
+            'receipt_image' => 'nullable|file|extensions:jpg,jpeg,png,webp,heic,heif|max:30720',
             'station_name' => 'nullable|string|max:255',
             'fuel_type' => 'nullable|string|max:100',
         ]);
