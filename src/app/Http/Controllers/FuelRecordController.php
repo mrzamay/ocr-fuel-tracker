@@ -64,6 +64,7 @@ class FuelRecordController extends Controller
         $status = 'manual';
         $amount = $request->amount;
         $volume = $request->volume;
+        $ocrPayload = null;
 
         if ($request->hasFile('receipt_image')) {
             $file = $request->file('receipt_image');
@@ -71,11 +72,12 @@ class FuelRecordController extends Controller
             $imagePath = $file->storeAs('receipts', $fileName, 'public');
             
             try {
-                $response = Http::attach(
+                $response = Http::timeout(90)->attach(
                     'file', file_get_contents($file->getRealPath()), $file->getClientOriginalName()
                 )->post('http://ocr:8000/recognize');
 
                 if ($response->successful()) {
+                    $ocrPayload = $response->json();
                     $ocrData = $response->json('extracted');
                     if (!empty($ocrData['amount'])) $amount = $ocrData['amount'];
                     if (!empty($ocrData['volume'])) $volume = $ocrData['volume'];
@@ -101,7 +103,10 @@ class FuelRecordController extends Controller
 
         return response()->json([
             'message' => 'Запись успешно создана',
-            'data' => $record
+            'data' => $record,
+            'raw_text' => $ocrPayload['raw_text'] ?? null,
+            'ocr' => $ocrPayload['ocr'] ?? null,
+            'ocr_extracted' => $ocrPayload['extracted'] ?? null,
         ], 201);
     }
 
