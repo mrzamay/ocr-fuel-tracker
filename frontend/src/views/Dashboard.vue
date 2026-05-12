@@ -78,8 +78,10 @@ const latestOdometer = computed(() => {
 const consumptionRecords = computed(() => records.value.filter(item => item.consumption_l_per_100km))
 const averageConsumption = computed(() => {
   if (consumptionRecords.value.length === 0) return null
-  const total = consumptionRecords.value.reduce((sum, item) => sum + Number(item.consumption_l_per_100km), 0)
-  return total / consumptionRecords.value.length
+  const distance = consumptionRecords.value.reduce((sum, item) => sum + Number(item.distance_km || 0), 0)
+  const volume = consumptionRecords.value.reduce((sum, item) => sum + Number(item.interval_volume || item.volume || 0), 0)
+  if (!distance || !volume) return null
+  return (volume / distance) * 100
 })
 
 const latestRecords = computed(() => records.value.slice(0, 3))

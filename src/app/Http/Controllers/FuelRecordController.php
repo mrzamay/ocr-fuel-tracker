@@ -19,9 +19,12 @@ class FuelRecordController extends Controller
             ->orderBy('date')
             ->orderBy('id');
 
-        $this->applyFilters($query, $request);
+        $this->applyFilters($query, $request, false);
 
-        $records = $this->withAnalytics($query->get())->reverse()->values();
+        $records = $this->filterRecordsByMonth(
+            $this->withAnalytics($query->get()),
+            $request->month
+        )->reverse()->values();
 
         return response()->json($records);
     }
@@ -190,19 +193,22 @@ class FuelRecordController extends Controller
         ]);
     }
 
-    private function applyFilters($query, Request $request): void
+    private function applyFilters($query, Request $request, bool $includeMonth = true): void
     {
         $query
             ->when($request->vehicle_id, fn ($q, $value) => $q->where('vehicle_id', $value))
             ->when($request->fuel_type, fn ($q, $value) => $q->where('fuel_type', $value))
             ->when($request->station_name, fn ($q, $value) => $q->where('station_name', $value))
-            ->when($request->status === 'ocr_pending', fn ($q) => $q->where('status', 'ocr_pending'))
-            ->when($request->month, function ($q, $value) {
+            ->when($request->status === 'ocr_pending', fn ($q) => $q->where('status', 'ocr_pending'));
+
+        if ($includeMonth) {
+            $query->when($request->month, function ($q, $value) {
                 [$year, $month] = array_pad(explode('-', $value), 2, null);
                 if ($year && $month) {
                     $q->whereYear('date', $year)->whereMonth('date', $month);
                 }
             });
+        }
     }
 
     private function resolveVehicle(Request $request, ?int $vehicleId): ?Vehicle
@@ -254,36 +260,50 @@ class FuelRecordController extends Controller
         return $records->map(function (FuelRecord $record) use (&$state) {
             $key = $record->vehicle_id ?: 'default';
             $state[$key] ??= [
-                'previousFullOdometer' => null,
-                'volumeSinceFull' => 0.0,
-                'amountSinceFull' => 0.0,
+                'previousOdometer' => null,
+                'volumeSinceOdometer' => 0.0,
+                'amountSinceOdometer' => 0.0,
             ];
 
             $record->distance_km = null;
             $record->consumption_l_per_100km = null;
             $record->cost_per_km = null;
+            $record->interval_volume = null;
+            $record->interval_amount = null;
             $warnings = [];
 
-            $state[$key]['volumeSinceFull'] += (float) ($record->volume ?? 0);
-            $state[$key]['amountSinceFull'] += (float) ($record->amount ?? 0);
+            $state[$key]['volumeSinceOdometer'] += (float) ($record->volume ?? 0);
+            $state[$key]['amountSinceOdometer'] += (float) ($record->amount ?? 0);
 
-            if ($record->is_full_tank && $record->odometer_km) {
-                $previousFullOdometer = $state[$key]['previousFullOdometer'];
+            if ($record->odometer_km) {
+                $previousOdometer = $state[$key]['previousOdometer'];
 
-                if ($previousFullOdometer && $record->odometer_km > $previousFullOdometer) {
-                    $distance = $record->odometer_km - $previousFullOdometer;
+                if ($previousOdometer && $record->odometer_km > $previousOdometer) {
+                    $distance = $record->odometer_km - $previousOdometer;
+                    $volume = $state[$key]['volumeSinceOdometer'];
+                    $amount = $state[$key]['amountSinceOdometer'];
                     $record->distance_km = $distance;
-                    $record->consumption_l_per_100km = round(($state[$key]['volumeSinceFull'] / $distance) * 100, 2);
-                    $record->cost_per_km = round($state[$key]['amountSinceFull'] / $distance, 2);
+                    $record->interval_volume = $volume;
+                    $record->interval_amount = $amount;
 
-                    if ($record->consumption_l_per_100km > 25 || $record->consumption_l_per_100km < 3) {
+                    if ($volume > 0) {
+                        $record->consumption_l_per_100km = round(($volume / $distance) * 100, 2);
+                    }
+
+                    if ($amount > 0) {
+                        $record->cost_per_km = round($amount / $distance, 2);
+                    }
+
+                    if ($record->consumption_l_per_100km && ($record->consumption_l_per_100km > 25 || $record->consumption_l_per_100km < 3)) {
                         $warnings[] = 'Проверьте пробег или литры: расход выглядит необычно';
                     }
+                } elseif ($previousOdometer && $record->odometer_km <= $previousOdometer) {
+                    $warnings[] = 'Пробег не вырос с прошлой заправки, расход не рассчитан';
                 }
 
-                $state[$key]['previousFullOdometer'] = $record->odometer_km;
-                $state[$key]['volumeSinceFull'] = 0.0;
-                $state[$key]['amountSinceFull'] = 0.0;
+                $state[$key]['previousOdometer'] = $record->odometer_km;
+                $state[$key]['volumeSinceOdometer'] = 0.0;
+                $state[$key]['amountSinceOdometer'] = 0.0;
             }
 
             $record->warnings = $warnings;
@@ -295,17 +315,18 @@ class FuelRecordController extends Controller
     private function monthlyStats(Request $request): array
     {
         $query = $request->user()->fuelRecords()->with('vehicle')->orderBy('date')->orderBy('id');
-        $this->applyFilters($query, $request);
+        $this->applyFilters($query, $request, false);
 
         $records = $this->withAnalytics($query->get());
         $month = $request->month ?: now()->format('Y-m');
-        $monthly = $records->filter(fn ($record) => $record->date?->format('Y-m') === $month);
+        $monthly = $this->filterRecordsByMonth($records, $month);
 
         $distance = $monthly->sum('distance_km');
         $amount = $monthly->sum(fn ($record) => (float) ($record->amount ?? 0));
         $volume = $monthly->sum(fn ($record) => (float) ($record->volume ?? 0));
+        $intervalAmount = $monthly->sum(fn ($record) => (float) ($record->interval_amount ?? 0));
+        $intervalVolume = $monthly->sum(fn ($record) => (float) ($record->interval_volume ?? 0));
         $prices = $monthly->pluck('unit_price')->filter();
-        $consumptions = $monthly->pluck('consumption_l_per_100km')->filter();
 
         return [
             'month' => $month,
@@ -313,9 +334,20 @@ class FuelRecordController extends Controller
             'amount' => round($amount, 2),
             'volume' => round($volume, 2),
             'distance_km' => $distance ?: null,
-            'avg_consumption' => $consumptions->count() ? round($consumptions->avg(), 2) : null,
+            'avg_consumption' => ($distance && $intervalVolume) ? round(($intervalVolume / $distance) * 100, 2) : null,
             'avg_unit_price' => $prices->count() ? round($prices->avg(), 2) : null,
-            'cost_per_km' => $distance ? round($amount / $distance, 2) : null,
+            'cost_per_km' => ($distance && $intervalAmount) ? round($intervalAmount / $distance, 2) : null,
         ];
+    }
+
+    private function filterRecordsByMonth($records, ?string $month)
+    {
+        if (!$month) {
+            return $records;
+        }
+
+        return $records
+            ->filter(fn ($record) => $record->date?->format('Y-m') === $month)
+            ->values();
     }
 }

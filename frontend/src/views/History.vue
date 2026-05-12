@@ -77,7 +77,10 @@ const statusLabel = (status) => ({
 const averageConsumption = computed(() => {
   const items = records.value.filter(record => record.consumption_l_per_100km)
   if (!items.length) return null
-  return items.reduce((sum, record) => sum + Number(record.consumption_l_per_100km), 0) / items.length
+  const distance = items.reduce((sum, record) => sum + Number(record.distance_km || 0), 0)
+  const volume = items.reduce((sum, record) => sum + Number(record.interval_volume || record.volume || 0), 0)
+  if (!distance || !volume) return null
+  return (volume / distance) * 100
 })
 
 const startEdit = (record) => {
@@ -198,7 +201,7 @@ onMounted(refresh)
 
           <div class="consumption-row">
             <div>
-              <span>{{ record.is_full_tank ? 'Полный бак' : 'Частичная' }}</span>
+              <span>Расход по пробегу</span>
               <strong>{{ record.consumption_l_per_100km ? `${formatNumber(record.consumption_l_per_100km, 1)} л / 100 км` : 'расход позже' }}</strong>
             </div>
             <div v-if="record.cost_per_km">
