@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class FuelRecord extends Model
 {
@@ -11,6 +12,10 @@ class FuelRecord extends Model
         'user_id', 'vehicle_id', 'amount', 'volume', 'unit_price', 'is_full_tank', 'odometer_km',
         'date', 'receipt_image_path', 'status', 'latitude', 'longitude', 'location_accuracy',
         'station_name', 'fuel_type', 'ocr_meta'
+    ];
+
+    protected $appends = [
+        'receipt_image_url',
     ];
 
     protected $casts = [
@@ -33,5 +38,12 @@ class FuelRecord extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    public function getReceiptImageUrlAttribute(): ?string
+    {
+        return $this->receipt_image_path
+            ? Storage::url($this->receipt_image_path)
+            : null;
     }
 }

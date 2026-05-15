@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import api from '../api'
 import { useRouter } from 'vue-router'
 import { saveOfflineRecord } from '../utils/db'
@@ -7,6 +7,7 @@ import { saveOfflineRecord } from '../utils/db'
 const router = useRouter()
 const activeTab = ref('scan')
 const file = ref(null)
+const receiptPreviewUrl = ref('')
 const isLoading = ref(false)
 const ocrResult = ref(null)
 const ocrInfo = ref(null)
@@ -35,6 +36,38 @@ const formData = ref({
 const fuelTypes = ['АИ-92', 'АИ-95', 'АИ-98', 'АИ-100', 'ДТ', 'Газ']
 
 const fileSizeMb = computed(() => file.value ? (file.value.size / 1024 / 1024).toFixed(1) : null)
+const receiptImageUrl = computed(() => receiptPreviewUrl.value || ocrResult.value?.receipt_image_url || '')
+
+const extractedFields = [
+  { key: 'amount', label: 'Сумма', suffix: ' ₽' },
+  { key: 'volume', label: 'Литры', suffix: ' л' },
+  { key: 'unit_price', label: 'Цена литра', suffix: ' ₽/л' },
+  { key: 'station_name', label: 'АЗС', suffix: '' },
+  { key: 'fuel_type', label: 'Топливо', suffix: '' }
+]
+
+const extractedItems = computed(() => {
+  const extracted = ocrInfo.value?.extracted || {}
+  return extractedFields
+    .filter(field => extracted[field.key] !== null && extracted[field.key] !== undefined && extracted[field.key] !== '')
+    .map(field => ({
+      ...field,
+      value: extracted[field.key],
+      source: extracted.sources?.[field.key] || ''
+    }))
+})
+
+const wasExtracted = (field) => {
+  const extracted = ocrInfo.value?.extracted || {}
+  return extracted[field] !== null && extracted[field] !== undefined && extracted[field] !== ''
+}
+
+const revokeReceiptPreview = () => {
+  if (receiptPreviewUrl.value) {
+    URL.revokeObjectURL(receiptPreviewUrl.value)
+    receiptPreviewUrl.value = ''
+  }
+}
 
 const fetchStationOptions = async () => {
   try {
@@ -81,7 +114,11 @@ const appendPayload = (fd) => {
 
 const handleFile = (e) => {
   errorMessage.value = ''
+  revokeReceiptPreview()
   file.value = e.target.files?.[0] || null
+  if (file.value) {
+    receiptPreviewUrl.value = URL.createObjectURL(file.value)
+  }
 }
 
 const fillFromVehicle = () => {
@@ -198,7 +235,16 @@ const submitManual = async () => {
   }
 }
 
+const resetScan = () => {
+  ocrResult.value = null
+  ocrInfo.value = null
+  file.value = null
+  activeTab.value = 'scan'
+  revokeReceiptPreview()
+}
+
 onMounted(fetchStationOptions)
+onUnmounted(revokeReceiptPreview)
 </script>
 
 <template>
@@ -272,12 +318,33 @@ onMounted(fetchStationOptions)
     <form v-if="activeTab === 'manual' || ocrResult" class="card form-card" @submit.prevent="ocrResult ? saveCorrection() : submitManual()">
       <div>
         <h3>{{ ocrResult ? 'Проверьте данные' : 'Данные заправки' }}</h3>
-        <p>{{ ocrResult ? 'OCR мог ошибиться, поправьте значения перед сохранением.' : 'Можно заполнить без фото, если чека нет под рукой.' }}</p>
+        <p>{{ ocrResult ? 'OCR мог уверенно ошибиться. Сверьте подсвеченные поля с фото чека перед сохранением.' : 'Можно заполнить без фото, если чека нет под рукой.' }}</p>
+      </div>
+
+      <div v-if="ocrResult" class="ocr-review">
+        <div class="receipt-preview">
+          <img v-if="receiptImageUrl" :src="receiptImageUrl" alt="Фото чека для сверки" />
+          <div v-else class="receipt-placeholder">Фото чека недоступно</div>
+        </div>
+
+        <div class="ocr-summary">
+          <div class="ocr-hint">
+            <strong>OCR: {{ ocrInfo?.extracted?.confidence || 0 }}%</strong>
+            <span>Процент показывает, что поля были найдены, а не что они точно верные.</span>
+          </div>
+          <div v-if="extractedItems.length" class="extracted-grid">
+            <article v-for="item in extractedItems" :key="item.key">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}{{ item.suffix }}</strong>
+              <em v-if="item.source">{{ item.source }}</em>
+            </article>
+          </div>
+        </div>
       </div>
 
       <div class="form-grid">
-        <div class="field">
-          <label>Авто</label>
+        <div class="field" :class="{ 'ocr-field': wasExtracted('vehicle_id') }">
+          <label>Авто <span v-if="wasExtracted('vehicle_id')">OCR</span></label>
           <select v-model="formData.vehicle_id" @change="fillFromVehicle">
             <option value="">Моё авто</option>
             <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
@@ -285,30 +352,30 @@ onMounted(fetchStationOptions)
             </option>
           </select>
         </div>
-        <div class="field">
-          <label>Сумма, ₽</label>
+        <div class="field" :class="{ 'ocr-field': wasExtracted('amount') }">
+          <label>Сумма, ₽ <span v-if="wasExtracted('amount')">OCR</span></label>
           <input v-model="formData.amount" inputmode="decimal" type="number" step="0.01" min="0" placeholder="3200" />
         </div>
-        <div class="field">
-          <label>Литры</label>
+        <div class="field" :class="{ 'ocr-field': wasExtracted('volume') }">
+          <label>Литры <span v-if="wasExtracted('volume')">OCR</span></label>
           <input v-model="formData.volume" inputmode="decimal" type="number" step="0.01" min="0" placeholder="45.2" />
         </div>
-        <div class="field">
-          <label>Цена литра</label>
+        <div class="field" :class="{ 'ocr-field': wasExtracted('unit_price') }">
+          <label>Цена литра <span v-if="wasExtracted('unit_price')">OCR</span></label>
           <input v-model="formData.unit_price" inputmode="decimal" type="number" step="0.01" min="0" placeholder="62.50" />
         </div>
-        <div class="field">
-          <label>Пробег, км</label>
+        <div class="field" :class="{ 'ocr-field': wasExtracted('odometer_km') }">
+          <label>Пробег, км <span v-if="wasExtracted('odometer_km')">OCR</span></label>
           <input v-model="formData.odometer_km" inputmode="numeric" type="number" min="0" placeholder="84500" />
         </div>
-        <div class="field">
-          <label>Дата</label>
+        <div class="field" :class="{ 'ocr-field': wasExtracted('date') }">
+          <label>Дата <span v-if="wasExtracted('date')">OCR</span></label>
           <input v-model="formData.date" type="date" />
         </div>
       </div>
 
-      <div class="field">
-        <label>Топливо</label>
+      <div class="field" :class="{ 'ocr-field': wasExtracted('fuel_type') }">
+        <label>Топливо <span v-if="wasExtracted('fuel_type')">OCR</span></label>
         <select v-model="formData.fuel_type">
           <option v-for="ft in fuelTypes" :key="ft" :value="ft">{{ ft }}</option>
         </select>
@@ -323,13 +390,8 @@ onMounted(fetchStationOptions)
         {{ locationState.label || 'Сохранить геопозицию АЗС' }}
       </button>
 
-      <div v-if="ocrInfo" class="ocr-hint">
-        <strong>OCR: {{ ocrInfo.extracted?.confidence || 0 }}%</strong>
-        <span>Проверьте подсвеченные поля перед сохранением.</span>
-      </div>
-
-      <div class="field">
-        <label>АЗС</label>
+      <div class="field" :class="{ 'ocr-field': wasExtracted('station_name') }">
+        <label>АЗС <span v-if="wasExtracted('station_name')">OCR</span></label>
         <input
           v-model="formData.station_name"
           type="text"
@@ -357,7 +419,7 @@ onMounted(fetchStationOptions)
       <button class="btn-primary" type="submit" :disabled="isLoading">
         {{ isLoading ? 'Сохраняем...' : (ocrResult ? 'Сохранить исправления' : 'Добавить заправку') }}
       </button>
-      <button v-if="ocrResult" class="btn-secondary" type="button" @click="ocrResult = null">
+      <button v-if="ocrResult" class="btn-secondary" type="button" @click="resetScan">
         Сканировать другой чек
       </button>
     </form>
@@ -404,6 +466,73 @@ onMounted(fetchStationOptions)
 .form-card {
   display: grid;
   gap: 16px;
+}
+
+.ocr-review {
+  display: grid;
+  gap: 12px;
+}
+
+.receipt-preview {
+  max-height: 360px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--soft);
+  overflow: auto;
+}
+
+.receipt-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.receipt-placeholder {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.ocr-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.extracted-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.extracted-grid article {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+}
+
+.extracted-grid span {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.extracted-grid strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.extracted-grid em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .file-target {
@@ -465,6 +594,23 @@ onMounted(fetchStationOptions)
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+.field label span {
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.field.ocr-field input,
+.field.ocr-field select {
+  border-color: rgba(245, 158, 11, 0.75);
+  background: var(--warning-bg);
+  box-shadow: inset 3px 0 0 var(--amber);
 }
 
 .form-error {
