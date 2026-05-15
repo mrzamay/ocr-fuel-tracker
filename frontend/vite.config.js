@@ -29,7 +29,7 @@ export default defineConfig({
         // Кэшируем запросы к API для оффлайн-работы
         runtimeCaching: [
           {
-            urlPattern: /^http:\/\/.*\/api\/records/,
+            urlPattern: ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/'),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-records-cache',

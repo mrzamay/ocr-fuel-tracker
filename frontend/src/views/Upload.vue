@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import api from '../api'
 import { useRouter } from 'vue-router'
-import { saveOfflineRecord } from '../utils/db'
+import { enqueueOfflineAction, saveOfflineRecord } from '../utils/db'
 
 const router = useRouter()
 const activeTab = ref('scan')
@@ -112,6 +112,8 @@ const appendPayload = (fd) => {
   })
 }
 
+const isNetworkError = (error) => !error.response || !navigator.onLine
+
 const handleFile = (e) => {
   errorMessage.value = ''
   revokeReceiptPreview()
@@ -192,7 +194,14 @@ const uploadReceipt = async () => {
     formData.value.date = ocrResult.value.date || formData.value.date
     activeTab.value = 'manual'
   } catch (error) {
-    if (error.response?.status === 413) {
+    if (isNetworkError(error)) {
+      try {
+        await saveOfflineRecord(file.value, payload())
+        router.push('/history')
+      } catch (e) {
+        errorMessage.value = 'Не получилось сохранить чек офлайн.'
+      }
+    } else if (error.response?.status === 413) {
       errorMessage.value = 'Фото слишком большое для сервера. После обновления лимит будет 30 МБ.'
     } else if (error.response?.status === 422) {
       errorMessage.value = 'Фото не принято сервером. На iPhone попробуйте формат JPEG/PNG или фото до 30 МБ.'
@@ -215,7 +224,21 @@ const saveCorrection = async () => {
     })
     router.push('/history')
   } catch (error) {
-    errorMessage.value = 'Не получилось сохранить данные.'
+    if (isNetworkError(error)) {
+      await enqueueOfflineAction({
+        type: 'record:update',
+        method: 'put',
+        url: `/records/${ocrResult.value.id}`,
+        payload: {
+          ...payload(),
+          status: 'success'
+        },
+        label: 'Исправление заправки'
+      })
+      router.push('/history')
+    } else {
+      errorMessage.value = 'Не получилось сохранить данные.'
+    }
   } finally {
     isLoading.value = false
   }
@@ -229,7 +252,18 @@ const submitManual = async () => {
     await api.post('/records', payload())
     router.push('/history')
   } catch (error) {
-    errorMessage.value = 'Не получилось добавить заправку.'
+    if (isNetworkError(error)) {
+      await enqueueOfflineAction({
+        type: 'record:create',
+        method: 'post',
+        url: '/records',
+        payload: payload(),
+        label: 'Новая заправка вручную'
+      })
+      router.push('/history')
+    } else {
+      errorMessage.value = 'Не получилось добавить заправку.'
+    }
   } finally {
     isLoading.value = false
   }

@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import api from '../api'
+import { deleteOfflineAction, enqueueOfflineAction, getOfflineAction, getOfflineActions, updateOfflineAction } from '../utils/db'
 
 const vehicles = ref([])
 const isLoading = ref(false)
@@ -9,6 +10,7 @@ const theme = ref(localStorage.getItem('theme') || 'system')
 
 const form = ref({
   id: null,
+  offline_action_id: null,
   name: '',
   plate_number: '',
   fuel_type: 'АИ-95',
@@ -17,10 +19,23 @@ const form = ref({
 })
 
 const fuelTypes = ['АИ-92', 'АИ-95', 'АИ-98', 'АИ-100', 'ДТ', 'Газ']
+const isNetworkError = (error) => !error.response || !navigator.onLine
+
+const offlineVehicleFromAction = (action) => ({
+  id: `offline-${action.id}`,
+  offline_action_id: action.id,
+  is_offline: true,
+  ...(action.payload || {})
+})
+
+const pendingVehicles = async () => {
+  return (await getOfflineActions()).filter(action => action.type === 'vehicle:create')
+}
 
 const resetForm = () => {
   form.value = {
     id: null,
+    offline_action_id: null,
     name: '',
     plate_number: '',
     fuel_type: 'АИ-95',
@@ -30,14 +45,23 @@ const resetForm = () => {
 }
 
 const fetchVehicles = async () => {
-  const { data } = await api.get('/vehicles')
-  vehicles.value = data
+  const pending = await pendingVehicles()
+  try {
+    const { data } = await api.get('/vehicles')
+    vehicles.value = [
+      ...pending.map(offlineVehicleFromAction),
+      ...data
+    ]
+  } catch (error) {
+    vehicles.value = pending.map(offlineVehicleFromAction)
+  }
   resetForm()
 }
 
 const editVehicle = (vehicle) => {
   form.value = {
     id: vehicle.id,
+    offline_action_id: vehicle.offline_action_id,
     name: vehicle.name || '',
     plate_number: vehicle.plate_number || '',
     fuel_type: vehicle.fuel_type || 'АИ-95',
@@ -56,14 +80,30 @@ const saveVehicle = async () => {
   }
 
   try {
-    if (form.value.id) {
+    if (form.value.id && String(form.value.id).startsWith('offline-')) {
+      const action = await getOfflineAction(form.value.offline_action_id)
+      await updateOfflineAction(form.value.offline_action_id, {
+        payload: { ...(action?.payload || {}), ...payload }
+      })
+    } else if (form.value.id) {
       await api.put(`/vehicles/${form.value.id}`, payload)
     } else {
       await api.post('/vehicles', payload)
     }
     await fetchVehicles()
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || 'Не получилось сохранить авто.'
+    if (isNetworkError(error)) {
+      await enqueueOfflineAction({
+        type: form.value.id ? 'vehicle:update' : 'vehicle:create',
+        method: form.value.id ? 'put' : 'post',
+        url: form.value.id ? `/vehicles/${form.value.id}` : '/vehicles',
+        payload,
+        label: form.value.id ? 'Редактирование авто' : 'Новое авто'
+      })
+      await fetchVehicles()
+    } else {
+      errorMessage.value = error.response?.data?.message || 'Не получилось сохранить авто.'
+    }
   } finally {
     isLoading.value = false
   }
@@ -73,10 +113,24 @@ const deleteVehicle = async (vehicle) => {
   if (!confirm(`Удалить ${vehicle.name}?`)) return
 
   try {
-    await api.delete(`/vehicles/${vehicle.id}`)
+    if (vehicle.is_offline) {
+      await deleteOfflineAction(vehicle.offline_action_id)
+    } else {
+      await api.delete(`/vehicles/${vehicle.id}`)
+    }
     await fetchVehicles()
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || 'Не получилось удалить авто.'
+    if (isNetworkError(error)) {
+      await enqueueOfflineAction({
+        type: 'vehicle:delete',
+        method: 'delete',
+        url: `/vehicles/${vehicle.id}`,
+        label: 'Удаление авто'
+      })
+      vehicles.value = vehicles.value.filter(item => item.id !== vehicle.id)
+    } else {
+      errorMessage.value = error.response?.data?.message || 'Не получилось удалить авто.'
+    }
   }
 }
 

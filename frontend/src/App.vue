@@ -1,13 +1,26 @@
 <script setup>
 import { useAuthStore } from './store/auth'
 import { useRouter, useRoute } from 'vue-router'
-import { onMounted, onUnmounted } from 'vue'
-import { getOfflineRecords, deleteOfflineRecord } from './utils/db'
+import { onMounted, onUnmounted, ref } from 'vue'
+import {
+  countOfflineActions,
+  deleteOfflineAction,
+  deleteOfflineRecord,
+  getOfflineActions,
+  getOfflineRecords,
+  updateOfflineAction
+} from './utils/db'
 import api from './api'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+const pendingSyncCount = ref(0)
+const isSyncing = ref(false)
+
+const refreshPendingSyncCount = async () => {
+  pendingSyncCount.value = await countOfflineActions()
+}
 
 const syncOfflineData = async () => {
   if (!auth.isAuthenticated) return
@@ -44,15 +57,80 @@ const syncOfflineData = async () => {
   }
 }
 
+const syncOfflineQueue = async () => {
+  if (!auth.isAuthenticated || isSyncing.value) return
+
+  const actions = await getOfflineActions()
+  if (actions.length === 0) {
+    pendingSyncCount.value = 0
+    return
+  }
+
+  isSyncing.value = true
+  let syncedCount = 0
+  const idMap = {}
+
+  for (const action of actions) {
+    try {
+      const payload = { ...(action.payload || {}) }
+      if (payload.vehicle_id && idMap[payload.vehicle_id]) {
+        payload.vehicle_id = idMap[payload.vehicle_id]
+      }
+
+      let data = payload || null
+      let headers = {}
+
+      if (action.file) {
+        data = new FormData()
+        data.append('receipt_image', action.file)
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && value !== '') {
+            data.append(key, value)
+          }
+        })
+        headers = { 'Content-Type': 'multipart/form-data' }
+      }
+
+      const response = await api.request({
+        method: action.method,
+        url: action.url,
+        data,
+        headers
+      })
+      if (action.type === 'vehicle:create' && response.data?.id) {
+        idMap[`offline-${action.id}`] = response.data.id
+      }
+      await deleteOfflineAction(action.id)
+      syncedCount++
+    } catch (e) {
+      await updateOfflineAction(action.id, {
+        attempts: (action.attempts || 0) + 1,
+        lastError: e.response?.data?.message || e.message || 'Ошибка синхронизации'
+      })
+      console.error('РћС€РёР±РєР° РѕС„Р»Р°Р№РЅ-СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё', e)
+    }
+  }
+
+  await refreshPendingSyncCount()
+  isSyncing.value = false
+
+  if (syncedCount > 0 && ['/', '/history', '/vehicles'].includes(route.path)) {
+    router.go(0)
+  }
+}
+
 onMounted(() => {
   const theme = localStorage.getItem('theme') || 'system'
   document.documentElement.dataset.theme = theme
-  window.addEventListener('online', syncOfflineData)
-  if (navigator.onLine) syncOfflineData()
+  refreshPendingSyncCount()
+  window.addEventListener('online', syncOfflineQueue)
+  window.addEventListener('offline-queue-changed', refreshPendingSyncCount)
+  if (navigator.onLine) syncOfflineQueue()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('online', syncOfflineData)
+  window.removeEventListener('online', syncOfflineQueue)
+  window.removeEventListener('offline-queue-changed', refreshPendingSyncCount)
 })
 
 const logout = () => {
@@ -67,6 +145,9 @@ const logout = () => {
       <div>
         <p class="eyebrow">Учёт топлива</p>
         <h1>FuelTracker</h1>
+        <span v-if="pendingSyncCount" class="sync-pill">
+          {{ isSyncing ? 'Синхронизация...' : `${pendingSyncCount} ждёт сети` }}
+        </span>
       </div>
       <button @click="logout" class="icon-button" aria-label="Выйти">
         <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none">
@@ -278,6 +359,17 @@ button {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.sync-pill {
+  display: inline-flex;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .icon-button {

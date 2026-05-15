@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import api from '../api'
+import { deleteOfflineAction, enqueueOfflineAction, getOfflineAction, getOfflineActions, updateOfflineAction } from '../utils/db'
 
 const records = ref([])
 const vehicles = ref([])
@@ -20,28 +21,70 @@ const filters = ref({
 
 const editForm = ref({})
 
+const isNetworkError = (error) => !error.response || !navigator.onLine
+
+const offlineRecordFromAction = (action) => {
+  const payload = action.payload || {}
+  const vehicle = vehicles.value.find(item => Number(item.id) === Number(payload.vehicle_id))
+  return {
+    id: `offline-${action.id}`,
+    offline_action_id: action.id,
+    is_offline: true,
+    status: 'offline_pending',
+    vehicle,
+    vehicle_id: payload.vehicle_id,
+    amount: payload.amount,
+    volume: payload.volume,
+    unit_price: payload.unit_price,
+    is_full_tank: Boolean(payload.is_full_tank),
+    odometer_km: payload.odometer_km,
+    date: payload.date,
+    station_name: payload.station_name,
+    fuel_type: payload.fuel_type,
+    warnings: action.lastError ? [action.lastError] : []
+  }
+}
+
+const pendingRecordActions = async () => {
+  return (await getOfflineActions()).filter(action => action.type === 'record:create')
+}
+
 const fetchMeta = async () => {
-  const [{ data: vehicleData }, { data: meta }] = await Promise.all([
-    api.get('/vehicles'),
-    api.get('/records/meta', { params: filters.value })
-  ])
-  vehicles.value = vehicleData
-  stations.value = meta.stations || []
-  fuelTypes.value = meta.fuel_types || []
+  try {
+    const [{ data: vehicleData }, { data: meta }] = await Promise.all([
+      api.get('/vehicles'),
+      api.get('/records/meta', { params: filters.value })
+    ])
+    vehicles.value = vehicleData
+    stations.value = meta.stations || []
+    fuelTypes.value = meta.fuel_types || []
+  } catch (error) {
+    vehicles.value = vehicles.value || []
+    stations.value = stations.value || []
+    fuelTypes.value = fuelTypes.value || []
+  }
 }
 
 const fetchRecords = async () => {
   isLoading.value = true
   try {
     const { data } = await api.get('/records', { params: filters.value })
-    records.value = data
+    const pending = await pendingRecordActions()
+    records.value = [
+      ...pending.map(offlineRecordFromAction).reverse(),
+      ...data
+    ]
+  } catch (error) {
+    const pending = await pendingRecordActions()
+    records.value = pending.map(offlineRecordFromAction).reverse()
   } finally {
     isLoading.value = false
   }
 }
 
 const refresh = async () => {
-  await Promise.all([fetchMeta(), fetchRecords()])
+  await fetchMeta()
+  await fetchRecords()
 }
 
 const formatMoney = (value) => new Intl.NumberFormat('ru-RU', {
@@ -71,7 +114,8 @@ const formatDate = (value) => {
 const statusLabel = (status) => ({
   manual: 'Вручную',
   success: 'Готово',
-  ocr_pending: 'Проверить'
+  ocr_pending: 'Проверить',
+  offline_pending: 'Ждёт сети'
 }[status] || status)
 
 const averageConsumption = computed(() => {
@@ -110,11 +154,30 @@ const cancelEdit = () => {
 const saveEdit = async () => {
   errorMessage.value = ''
   try {
-    await api.put(`/records/${editing.value.id}`, editForm.value)
+    if (editing.value.is_offline) {
+      const action = await getOfflineAction(editing.value.offline_action_id)
+      await updateOfflineAction(editing.value.offline_action_id, {
+        payload: { ...(action?.payload || {}), ...editForm.value }
+      })
+    } else {
+      await api.put(`/records/${editing.value.id}`, editForm.value)
+    }
     cancelEdit()
     await refresh()
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || 'Не получилось сохранить запись.'
+    if (isNetworkError(error)) {
+      await enqueueOfflineAction({
+        type: 'record:update',
+        method: 'put',
+        url: `/records/${editing.value.id}`,
+        payload: editForm.value,
+        label: 'Редактирование заправки'
+      })
+      cancelEdit()
+      await refresh()
+    } else {
+      errorMessage.value = error.response?.data?.message || 'Не получилось сохранить запись.'
+    }
   }
 }
 
@@ -122,10 +185,24 @@ const deleteRecord = async (record) => {
   if (!confirm('Удалить заправку?')) return
 
   try {
-    await api.delete(`/records/${record.id}`)
+    if (record.is_offline) {
+      await deleteOfflineAction(record.offline_action_id)
+    } else {
+      await api.delete(`/records/${record.id}`)
+    }
     await refresh()
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || 'Не получилось удалить запись.'
+    if (isNetworkError(error)) {
+      await enqueueOfflineAction({
+        type: 'record:delete',
+        method: 'delete',
+        url: `/records/${record.id}`,
+        label: 'Удаление заправки'
+      })
+      records.value = records.value.filter(item => item.id !== record.id)
+    } else {
+      errorMessage.value = error.response?.data?.message || 'Не получилось удалить запись.'
+    }
   }
 }
 
@@ -323,6 +400,11 @@ onMounted(refresh)
 .status-pill.manual {
   color: var(--info-ink);
   background: var(--info-bg);
+}
+
+.status-pill.offline_pending {
+  color: var(--warning-ink);
+  background: var(--warning-bg);
 }
 
 .record-metrics {

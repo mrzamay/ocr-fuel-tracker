@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import api from '../api'
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
+import { getOfflineActions } from '../utils/db'
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
@@ -50,13 +51,27 @@ const formatChartDate = (value) => {
 
 const fetchData = async () => {
   isLoading.value = true
+  const pending = (await getOfflineActions()).filter(action => action.type === 'record:create')
+  const pendingRecords = pending.map(action => ({
+    id: `offline-${action.id}`,
+    is_offline: true,
+    status: 'offline_pending',
+    ...(action.payload || {}),
+    station_name: action.payload?.station_name || 'Ожидает сети'
+  })).reverse()
+
   try {
     const [{ data }, { data: meta }] = await Promise.all([
       api.get('/records'),
       api.get('/records/meta', { params: { month: currentMonth } })
     ])
-    records.value = data
+    records.value = [
+      ...pendingRecords,
+      ...data
+    ]
     monthly.value = meta.monthly
+  } catch (error) {
+    records.value = pendingRecords
   } finally {
     isLoading.value = false
   }
