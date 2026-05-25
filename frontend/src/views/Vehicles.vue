@@ -5,7 +5,10 @@ import { deleteOfflineAction, enqueueOfflineAction, getOfflineAction, getOffline
 
 const vehicles = ref([])
 const isLoading = ref(false)
+const isPasswordLoading = ref(false)
 const errorMessage = ref('')
+const passwordMessage = ref('')
+const passwordError = ref('')
 const theme = ref(localStorage.getItem('theme') || 'system')
 
 const form = ref({
@@ -16,6 +19,12 @@ const form = ref({
   fuel_type: 'АИ-95',
   current_odometer_km: '',
   is_default: false
+})
+
+const passwordForm = ref({
+  current_password: '',
+  password: '',
+  password_confirmation: ''
 })
 
 const fuelTypes = ['АИ-92', 'АИ-95', 'АИ-98', 'АИ-100', 'ДТ', 'Газ']
@@ -139,6 +148,39 @@ const saveTheme = () => {
   document.documentElement.dataset.theme = theme.value
 }
 
+const resetPasswordForm = () => {
+  passwordForm.value = {
+    current_password: '',
+    password: '',
+    password_confirmation: ''
+  }
+}
+
+const changePassword = async () => {
+  passwordError.value = ''
+  passwordMessage.value = ''
+
+  if (passwordForm.value.password !== passwordForm.value.password_confirmation) {
+    passwordError.value = 'Новый пароль и повтор пароля не совпадают.'
+    return
+  }
+
+  isPasswordLoading.value = true
+
+  try {
+    const { data } = await api.put('/password', passwordForm.value)
+    passwordMessage.value = data.message || 'Пароль успешно изменён.'
+    resetPasswordForm()
+  } catch (error) {
+    const errors = error.response?.data?.errors
+    passwordError.value = errors
+      ? Object.values(errors).flat()[0]
+      : (error.response?.data?.message || 'Не получилось изменить пароль.')
+  } finally {
+    isPasswordLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await fetchVehicles()
   saveTheme()
@@ -215,6 +257,29 @@ onMounted(async () => {
         <span>Пробег</span><strong>км</strong>
       </div>
     </div>
+
+    <form class="card password-card" @submit.prevent="changePassword">
+      <h3>Смена пароля</h3>
+      <div class="field">
+        <label>Текущий пароль</label>
+        <input v-model="passwordForm.current_password" type="password" autocomplete="current-password" required />
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Новый пароль</label>
+          <input v-model="passwordForm.password" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <div class="field">
+          <label>Повторите пароль</label>
+          <input v-model="passwordForm.password_confirmation" type="password" autocomplete="new-password" minlength="8" required />
+        </div>
+      </div>
+      <p v-if="passwordError" class="form-error">{{ passwordError }}</p>
+      <p v-if="passwordMessage" class="form-success">{{ passwordMessage }}</p>
+      <button class="btn-primary" type="submit" :disabled="isPasswordLoading">
+        {{ isPasswordLoading ? 'Меняем пароль...' : 'Изменить пароль' }}
+      </button>
+    </form>
   </section>
 </template>
 
@@ -225,13 +290,15 @@ onMounted(async () => {
 }
 
 .vehicle-form,
-.settings-card {
+.settings-card,
+.password-card {
   display: grid;
   gap: 14px;
 }
 
 .vehicle-form h3,
 .settings-card h3,
+.password-card h3,
 .vehicle-card h3 {
   margin: 0;
 }
@@ -319,6 +386,15 @@ onMounted(async () => {
   border-radius: var(--radius);
   color: var(--danger-ink);
   background: var(--danger-bg);
+  font-weight: 700;
+}
+
+.form-success {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius);
+  color: var(--success-ink);
+  background: var(--success-bg);
   font-weight: 700;
 }
 </style>

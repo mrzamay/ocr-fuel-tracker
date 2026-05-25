@@ -68,4 +68,24 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Успешный выход из системы']);
     }
+
+    public function changePassword(Request $request)
+    {
+        $validated = $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if (!Hash::check($validated['current_password'], $request->user()->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Текущий пароль указан неверно.'],
+            ]);
+        }
+
+        $request->user()->forceFill([
+            'password' => Hash::make($validated['password']),
+        ])->save();
+
+        return response()->json(['message' => 'Пароль успешно изменён']);
+    }
 }
