@@ -113,11 +113,59 @@ const appendPayload = (fd) => {
 }
 
 const isNetworkError = (error) => !error.response || !navigator.onLine
+const isTimeoutError = (error) => error.code === 'ECONNABORTED' || error.response?.status === 504
 
-const handleFile = (e) => {
+const compressReceiptImage = async (selectedFile) => {
+  if (!selectedFile?.type?.startsWith('image/')) {
+    return selectedFile
+  }
+
+  const imageUrl = URL.createObjectURL(selectedFile)
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image()
+      img.onload = () => resolve(img)
+      img.onerror = reject
+      img.src = imageUrl
+    })
+
+    const maxSide = 1800
+    const scale = Math.min(maxSide / Math.max(image.width, image.height), 1)
+
+    if (scale === 1 && selectedFile.size <= 2.5 * 1024 * 1024) {
+      return selectedFile
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(image.width * scale)
+    canvas.height = Math.round(image.height * scale)
+
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.82)
+    })
+
+    if (!blob) {
+      return selectedFile
+    }
+
+    const normalizedName = selectedFile.name.replace(/\.[^.]+$/, '') || 'receipt'
+    return new File([blob], `${normalizedName}.jpg`, { type: 'image/jpeg' })
+  } catch (error) {
+    return selectedFile
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
+}
+
+const handleFile = async (e) => {
   errorMessage.value = ''
   revokeReceiptPreview()
-  file.value = e.target.files?.[0] || null
+  const selectedFile = e.target.files?.[0] || null
+  file.value = selectedFile ? await compressReceiptImage(selectedFile) : null
   if (file.value) {
     receiptPreviewUrl.value = URL.createObjectURL(file.value)
   }
@@ -178,7 +226,8 @@ const uploadReceipt = async () => {
 
   try {
     const { data } = await api.post('/records', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 40000
     })
     ocrResult.value = data.data
     ocrInfo.value = {
@@ -194,7 +243,9 @@ const uploadReceipt = async () => {
     formData.value.date = ocrResult.value.date || formData.value.date
     activeTab.value = 'manual'
   } catch (error) {
-    if (isNetworkError(error)) {
+    if (isTimeoutError(error)) {
+      errorMessage.value = '\u0420\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u0432\u0430\u043d\u0438\u0435 \u0437\u0430\u043d\u044f\u043b\u043e \u0441\u043b\u0438\u0448\u043a\u043e\u043c \u043c\u043d\u043e\u0433\u043e \u0432\u0440\u0435\u043c\u0435\u043d\u0438. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0444\u043e\u0442\u043e \u043a\u0440\u0443\u043f\u043d\u0435\u0435/\u0441\u0432\u0435\u0442\u043b\u0435\u0435 \u0438\u043b\u0438 \u0434\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0437\u0430\u043f\u0440\u0430\u0432\u043a\u0443 \u0432\u0440\u0443\u0447\u043d\u0443\u044e.'
+    } else if (isNetworkError(error)) {
       try {
         await saveOfflineRecord(file.value, payload())
         router.push('/history')

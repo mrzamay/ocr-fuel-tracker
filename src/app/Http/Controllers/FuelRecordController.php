@@ -63,34 +63,46 @@ class FuelRecordController extends Controller
         $fuelType = $validated['fuel_type'] ?? $vehicle?->fuel_type;
         $stationName = $validated['station_name'] ?? null;
         $ocrPayload = null;
+        $shouldRunOcr = !$request->boolean('skip_ocr');
 
         if ($request->hasFile('receipt_image')) {
             $file = $request->file('receipt_image');
             $fileName = time() . '_' . $file->getClientOriginalName();
             $imagePath = $file->storeAs('receipts', $fileName, 'public');
+            $status = 'ocr_pending';
 
-            try {
-                $response = Http::timeout(90)->attach(
-                    'file',
-                    file_get_contents($file->getRealPath()),
-                    $file->getClientOriginalName()
-                )->post('http://ocr:8000/recognize');
+            if ($shouldRunOcr) {
+                try {
+                    $response = Http::connectTimeout(3)->timeout(25)->attach(
+                        'file',
+                        file_get_contents($file->getRealPath()),
+                        $file->getClientOriginalName()
+                    )->post('http://ocr:8000/recognize');
 
-                if ($response->successful()) {
-                    $ocrPayload = $response->json();
-                    $ocrData = $ocrPayload['extracted'] ?? [];
+                    if ($response->successful()) {
+                        $ocrPayload = $response->json();
+                        $ocrData = $ocrPayload['extracted'] ?? [];
 
-                    $amount = $ocrData['amount'] ?? $amount;
-                    $volume = $ocrData['volume'] ?? $volume;
-                    $unitPrice = $ocrData['unit_price'] ?? $unitPrice;
-                    $fuelType = $ocrData['fuel_type'] ?? $fuelType;
-                    $stationName = $ocrData['station_name'] ?? $stationName;
-                    $status = ($amount || $volume) ? 'success' : 'ocr_pending';
-                } else {
-                    $status = 'ocr_pending';
+                        $amount = $ocrData['amount'] ?? $amount;
+                        $volume = $ocrData['volume'] ?? $volume;
+                        $unitPrice = $ocrData['unit_price'] ?? $unitPrice;
+                        $fuelType = $ocrData['fuel_type'] ?? $fuelType;
+                        $stationName = $ocrData['station_name'] ?? $stationName;
+                        $status = ($amount || $volume) ? 'success' : 'ocr_pending';
+                    } else {
+                        $ocrPayload = [
+                            'error' => 'OCR service returned HTTP ' . $response->status(),
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    $ocrPayload = [
+                        'error' => $e->getMessage(),
+                    ];
                 }
-            } catch (\Throwable) {
-                $status = 'ocr_pending';
+            } else {
+                $ocrPayload = [
+                    'error' => 'OCR skipped during offline sync',
+                ];
             }
         }
 
@@ -115,6 +127,7 @@ class FuelRecordController extends Controller
                 'ocr' => $ocrPayload['ocr'] ?? null,
                 'extracted' => $ocrPayload['extracted'] ?? null,
                 'raw_text' => $ocrPayload['raw_text'] ?? null,
+                'error' => $ocrPayload['error'] ?? null,
             ] : null,
         ]);
 
@@ -184,6 +197,7 @@ class FuelRecordController extends Controller
             'odometer_km' => 'nullable|integer|min:0',
             'date' => 'nullable|date',
             'receipt_image' => [$withImage ? 'nullable' : 'prohibited', 'file', 'extensions:jpg,jpeg,png,webp,heic,heif', 'max:30720'],
+            'skip_ocr' => 'nullable|boolean',
             'station_name' => 'nullable|string|max:255',
             'fuel_type' => 'nullable|string|max:100',
             'status' => 'nullable|string|in:manual,success,ocr_pending',

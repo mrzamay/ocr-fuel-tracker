@@ -22,6 +22,10 @@ const refreshPendingSyncCount = async () => {
   pendingSyncCount.value = await countOfflineActions()
 }
 
+const shouldPauseSync = (error) => {
+  return !navigator.onLine || error.code === 'ECONNABORTED' || [502, 503, 504].includes(error.response?.status)
+}
+
 const syncOfflineData = async () => {
   if (!auth.isAuthenticated) return
 
@@ -83,6 +87,7 @@ const syncOfflineQueue = async () => {
       if (action.file) {
         data = new FormData()
         data.append('receipt_image', action.file)
+        data.append('skip_ocr', '1')
         Object.entries(payload).forEach(([key, value]) => {
           if (value !== null && value !== undefined && value !== '') {
             data.append(key, value)
@@ -107,7 +112,10 @@ const syncOfflineQueue = async () => {
         attempts: (action.attempts || 0) + 1,
         lastError: e.response?.data?.message || e.message || 'Ошибка синхронизации'
       })
-      console.error('РћС€РёР±РєР° РѕС„Р»Р°Р№РЅ-СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё', e)
+      console.error('Ошибка оффлайн-синхронизации', e)
+      if (shouldPauseSync(e)) {
+        break
+      }
     }
   }
 

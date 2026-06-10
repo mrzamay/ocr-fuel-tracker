@@ -3,6 +3,7 @@ import { cacheApiResponse, getCachedApiResponse } from '../utils/db'
 
 const api = axios.create({
   baseURL: '/api',
+  timeout: 35000,
   withCredentials: true, // Важно для куки Sanctum
   headers: {
     'Accept': 'application/json',

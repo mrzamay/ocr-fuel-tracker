@@ -250,7 +250,7 @@ def prepare_image(image: Image.Image) -> Image.Image:
     image = ImageOps.exif_transpose(image)
     image = image.convert("RGB")
 
-    max_side = 2200
+    max_side = 1400
     width, height = image.size
     scale = min(max_side / max(width, height), 1)
     if scale < 1:
@@ -264,13 +264,10 @@ def preprocess_variants(image: Image.Image) -> list[tuple[str, Image.Image]]:
     autocontrast = ImageOps.autocontrast(gray)
     sharp = autocontrast.filter(ImageFilter.SHARPEN)
     high_contrast = ImageEnhance.Contrast(sharp).enhance(1.8)
-    threshold = high_contrast.point(lambda pixel: 255 if pixel > 165 else 0)
 
     return [
-        ("gray", gray),
         ("autocontrast", autocontrast),
         ("high_contrast", high_contrast),
-        ("threshold", threshold),
     ]
 
 
@@ -278,13 +275,36 @@ def run_ocr(image: Image.Image) -> dict[str, Any]:
     attempts = []
     configs = [
         ("psm6", r"--oem 3 --psm 6"),
-        ("psm4", r"--oem 3 --psm 4"),
         ("psm11", r"--oem 3 --psm 11"),
     ]
 
     for variant_name, variant in preprocess_variants(image):
         for config_name, config in configs:
-            text = pytesseract.image_to_string(variant, lang="rus+eng", config=config)
+            try:
+                text = pytesseract.image_to_string(
+                    variant,
+                    lang="rus+eng",
+                    config=config,
+                    timeout=6,
+                )
+            except RuntimeError as exc:
+                attempts.append({
+                    "variant": variant_name,
+                    "config": config_name,
+                    "text": "",
+                    "extracted": {
+                        "amount": None,
+                        "volume": None,
+                        "unit_price": None,
+                        "fuel_type": None,
+                        "station_name": None,
+                        "confidence": 0,
+                        "sources": {},
+                    },
+                    "score": 0,
+                    "error": str(exc),
+                })
+                continue
             extracted = extract_data_from_text(text)
             score = extracted["confidence"] + min(len(text.strip()) / 100, 20)
             attempts.append({
@@ -294,6 +314,9 @@ def run_ocr(image: Image.Image) -> dict[str, Any]:
                 "extracted": extracted,
                 "score": score,
             })
+
+    if not attempts:
+        raise RuntimeError("OCR did not produce any attempts.")
 
     return max(attempts, key=lambda item: item["score"])
 
