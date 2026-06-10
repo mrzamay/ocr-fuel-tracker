@@ -214,7 +214,7 @@ onMounted(refresh)
     <div class="page-head">
       <h2 class="section-title">История</h2>
       <p class="section-note">
-        {{ averageConsumption ? `Средний расход ${formatNumber(averageConsumption, 1)} л / 100 км` : 'Расход появится после двух полных баков с пробегом.' }}
+        {{ averageConsumption ? `Средний расход ${formatNumber(averageConsumption, 1)} л / 100 км` : 'Расход появится после двух заправок с пробегом.' }}
       </p>
     </div>
 
@@ -273,12 +273,12 @@ onMounted(refresh)
             <div><span>Сумма</span><strong>{{ formatMoney(record.amount) }} ₽</strong></div>
             <div><span>Литры</span><strong>{{ formatNumber(record.volume, 1) }}</strong></div>
             <div><span>Цена</span><strong>{{ record.unit_price ? `${formatNumber(record.unit_price, 2)} ₽` : '—' }}</strong></div>
-            <div><span>Пробег</span><strong>{{ record.odometer_km ? `${formatMoney(record.odometer_km)} км` : '—' }}</strong></div>
+            <div><span>Пробег на заправке</span><strong>{{ record.odometer_km ? `${formatMoney(record.odometer_km)} км` : '—' }}</strong></div>
           </div>
 
           <div class="consumption-row">
             <div>
-              <span>Расход по пробегу</span>
+              <span>Расход за прошлый интервал</span>
               <strong>{{ record.consumption_l_per_100km ? `${formatNumber(record.consumption_l_per_100km, 1)} л / 100 км` : 'расход позже' }}</strong>
             </div>
             <div v-if="record.cost_per_km">
@@ -307,7 +307,7 @@ onMounted(refresh)
             <div class="field"><label>Сумма</label><input v-model="editForm.amount" type="number" step="0.01" /></div>
             <div class="field"><label>Литры</label><input v-model="editForm.volume" type="number" step="0.01" /></div>
             <div class="field"><label>Цена литра</label><input v-model="editForm.unit_price" type="number" step="0.01" /></div>
-            <div class="field"><label>Пробег</label><input v-model="editForm.odometer_km" type="number" /></div>
+            <div class="field"><label>Пробег на заправке</label><input v-model="editForm.odometer_km" type="number" /></div>
           </div>
           <div class="field"><label>АЗС</label><input v-model="editForm.station_name" type="text" /></div>
           <div class="field"><label>Топливо</label><input v-model="editForm.fuel_type" type="text" /></div>

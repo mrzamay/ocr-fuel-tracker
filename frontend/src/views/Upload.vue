@@ -336,7 +336,7 @@ onUnmounted(revokeReceiptPreview)
   <section class="upload-page">
     <div class="page-head">
       <h2 class="section-title">Новая заправка</h2>
-      <p class="section-note">Добавьте чек или внесите данные вручную. Пробег нужен для расчёта расхода.</p>
+      <p class="section-note">Добавьте чек или внесите данные вручную. Указывайте пробег именно на момент этой заправки.</p>
     </div>
 
     <div class="tabs" v-if="!ocrResult">
@@ -375,7 +375,7 @@ onUnmounted(revokeReceiptPreview)
           </select>
         </div>
         <div class="field">
-          <label>Пробег, км</label>
+          <label>Пробег на заправке, км</label>
           <input v-model="formData.odometer_km" inputmode="numeric" type="number" min="0" placeholder="84500" />
         </div>
       </div>
@@ -450,7 +450,7 @@ onUnmounted(revokeReceiptPreview)
           <input v-model="formData.unit_price" inputmode="decimal" type="number" step="0.01" min="0" placeholder="62.50" />
         </div>
         <div class="field" :class="{ 'ocr-field': wasExtracted('odometer_km') }">
-          <label>Пробег, км <span v-if="wasExtracted('odometer_km')">OCR</span></label>
+          <label>Пробег на заправке, км <span v-if="wasExtracted('odometer_km')">OCR</span></label>
           <input v-model="formData.odometer_km" inputmode="numeric" type="number" min="0" placeholder="84500" />
         </div>
         <div class="field" :class="{ 'ocr-field': wasExtracted('date') }">

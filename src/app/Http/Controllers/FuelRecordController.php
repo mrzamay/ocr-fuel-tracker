@@ -286,9 +286,6 @@ class FuelRecordController extends Controller
             $record->interval_amount = null;
             $warnings = [];
 
-            $state[$key]['volumeSinceOdometer'] += (float) ($record->volume ?? 0);
-            $state[$key]['amountSinceOdometer'] += (float) ($record->amount ?? 0);
-
             if ($record->odometer_km) {
                 $previousOdometer = $state[$key]['previousOdometer'];
 
@@ -319,6 +316,9 @@ class FuelRecordController extends Controller
                 $state[$key]['volumeSinceOdometer'] = 0.0;
                 $state[$key]['amountSinceOdometer'] = 0.0;
             }
+
+            $state[$key]['volumeSinceOdometer'] += (float) ($record->volume ?? 0);
+            $state[$key]['amountSinceOdometer'] += (float) ($record->amount ?? 0);
 
             $record->warnings = $warnings;
 
